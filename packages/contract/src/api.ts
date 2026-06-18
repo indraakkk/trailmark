@@ -6,14 +6,17 @@
 // imports only @effect/platform + effect + sibling contract modules.
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from '@effect/platform'
 import { Schema } from 'effect'
-import { BrokenResponse, GenTimeout, InvalidPrompt, NotFound } from './errors.js'
+import { InvalidPrompt, NotFound } from './errors.js'
 import { BadgeView, GenerateBadgeInput } from './schemas/Badge.js'
 import { Authorization } from './auth.js'
 
-// GenTimeout/BrokenResponse are listed so the contract documents the full failure
-// surface; they settle on the row (status:'failed') rather than as the POST's error.
-void GenTimeout
-void BrokenResponse
+// Demo hook (server-gated by DEMO_HOOKS): ?force= deterministically triggers a
+// failure state on camera. GenTimeout/BrokenResponse from a real generation settle
+// on the ROW (status:'failed') and surface via poll/gallery, not as the POST's error;
+// only InvalidPrompt is checked synchronously, so it is the POST's typed error.
+const ForceParam = Schema.Struct({
+  force: Schema.optional(Schema.Literal('timeout', 'invalid', 'broken')),
+})
 
 // The image bytes default content-type is image/png; the server streams the real
 // type from the stored bytes' magic number (PNG or JPEG). The `.jpg` key suffix is
@@ -26,6 +29,7 @@ class BadgesApi extends HttpApiGroup.make('badges')
   .add(
     HttpApiEndpoint.post('generate', '/badges')
       .setPayload(GenerateBadgeInput)
+      .setUrlParams(ForceParam)
       .addSuccess(BadgeView)
       .addError(InvalidPrompt),
   )
@@ -40,6 +44,7 @@ class BadgesApi extends HttpApiGroup.make('badges')
     HttpApiEndpoint.post('regenerate', '/badges/:id/regenerate')
       .setPath(Schema.Struct({ id: Schema.UUID }))
       .setPayload(GenerateBadgeInput)
+      .setUrlParams(ForceParam)
       .addSuccess(BadgeView)
       .addError(InvalidPrompt),
   )
