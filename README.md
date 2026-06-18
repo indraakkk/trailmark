@@ -156,23 +156,37 @@ schedule + a single provider failover. The image proxy labels every emblem `imag
 even when the stored bytes are JPEG (browsers sniff; the canvas concern is *origin*, not
 content-type) — a deliberate simplification.
 
-## Deploy (prepared; runs from the taprunning repo)
+## Deploy (GitHub Action → second app on `tap`)
 
-Trailmark ships as a **second app on the existing clan.lol/NixOS box `tap`**, coexisting
-with taprunning ([ADR-0009](docs/adr/0009-second-app-on-tap.md)). This repo exposes:
+Trailmark deploys as a **second app on the existing clan.lol/NixOS box `tap`**, coexisting
+with taprunning ([ADR-0009](docs/adr/0009-second-app-on-tap.md)) on a non-conflicting port
+(server `3001` vs taprunning's `3000`; its own loopback Garage on `3900/3901/3903`).
 
-- `packages.<system>.trailmark` — the closure artifact (server workspace + SPA bundle), via
-  `bun2nix` deterministic deps. Build proof: `nix build .#packages.x86_64-linux.trailmark -L`.
-- `nixosModules.trailmark` — a clan service: `trailmark-server` (`127.0.0.1:3001`),
-  `trailmark-migrate` (PgMigrator), the prod **Garage** daemon + bootstrap, an additive
-  Caddy vhost (`trailmark.duckdns.org`) and Postgres db/role, secrets via clan-vars + systemd
-  `LoadCredential`.
+`tap`'s whole config is taprunning's `nixosConfigurations.tap`, so a standalone deploy would
+*overwrite* taprunning. Instead, **the integration lives in taprunning** (`main`): the
+`trailmark` flake input + the clan service module + an instance — all *additive* (Caddy
+vhost + Postgres db/role merge alongside taprunning's). This was validated by building the
+merged closure: `nix eval .#nixosConfigurations.tap.config.system.build.toplevel.drvPath`
+evaluates to a valid `nixos-system-tap` with no conflicts. The clan vars
+(`better-auth-secret`, `garage-env`) are generated + committed in taprunning, encrypted to
+the same recipients as taprunning's vars.
 
-To deploy, in the **taprunning** repo: add `trailmark` as a pinned flake input, register the
-module + an instance on `tap` (see [docs/plan/24-deploy.md](docs/plan/24-deploy.md) §2),
-point `trailmark.duckdns.org` → the box, then `nix run .#clan-cli -- machines update tap`.
-A CI fallback (`.github/workflows/deploy.yml`) proves the closure builds and dispatches
-taprunning's deploy.
+`.github/workflows/deploy.yml` (this repo) checks out trailmark + taprunning, re-locks the
+`trailmark` input to the current commit, builds the tap closure on an x86_64-linux runner,
+and activates it via `clan machines update tap` over SSH — sharing the `deploy-tap`
+concurrency lane with taprunning so two activations never race.
+
+**To run it (one-time setup):**
+1. In the **trailmark** repo settings → Secrets, add `DEPLOY_SSH_KEY` (the private
+   `id_github_indraakkk`, whose public half is in tap's root `authorizedKeys`) and
+   `SOPS_AGE_KEY` (the CI age key, same value as taprunning's — it decrypts the vars).
+2. Point DuckDNS `trailmark.duckdns.org` → `43.133.128.143` (for the new vhost's ACME cert).
+3. Trigger: `gh workflow run "Deploy trailmark to tap" --repo indraakkk/trailmark` (or push
+   to `release`). Verify: `curl -fsS https://trailmark.duckdns.org/api/healthz` **and**
+   `curl -fsS https://taprunning.duckdns.org/` (coexistence).
+
+Runs on the **Pollinations** provider + logged-link auth by default; add Cloudflare/Resend
+later by extending the clan-vars generator in `nix/trailmark-service.nix` (documented inline).
 
 ## Pinned versions
 
