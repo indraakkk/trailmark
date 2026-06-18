@@ -10,7 +10,7 @@ import { Context, Duration, Effect, Layer, Schedule } from 'effect'
 import { BrokenResponse, GenTimeout, InvalidPrompt } from '@trailmark/contract'
 import { CloudflareConfig, DemoHooks, MaxBytes } from '../infra/Config.js'
 
-const MAX_PROMPT = 2048 // flux-schnell hard limit
+export const MAX_PROMPT = 2048 // flux-schnell hard limit (shared with submit's pre-flight gate)
 const MIN_BYTES = 8 * 1024 // reject empty / truncated / HTML error page
 const POLLINATIONS_PLACEHOLDER = 1_300_000 // ~1.3MB rate-limit decoy
 

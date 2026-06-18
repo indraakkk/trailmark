@@ -26,12 +26,20 @@ const run = <A, E>(f: (c: Effect.Effect.Success<typeof client>) => Effect.Effect
 export type Force = 'timeout' | 'invalid' | 'broken'
 export type GenResult = { ok: true; badge: BadgeView } | { ok: false; reason: string }
 
-/** Generate: InvalidPrompt (the synchronous 422) is surfaced as a typed result, not a throw. */
+// Map ANY generate/regenerate failure to a typed result so these never reject:
+// InvalidPrompt (synchronous 422), Unauthorized (expired session), or transport error.
+const genErr = (e: { _tag?: string; reason?: string }): GenResult => {
+  if (e?._tag === 'InvalidPrompt') return { ok: false, reason: e.reason ?? 'Prompt rejected' }
+  if (e?._tag === 'Unauthorized') return { ok: false, reason: 'Your session expired — please sign in again.' }
+  return { ok: false, reason: 'Could not reach the server — please retry.' }
+}
+
+/** Generate: failures (InvalidPrompt / Unauthorized / network) come back as a typed result. */
 export const generate = (payload: GenerateBadgeInput, force?: Force): Promise<GenResult> =>
   run((c) =>
     c.badges.generate({ payload, urlParams: force ? { force } : {} }).pipe(
       Effect.map((badge) => ({ ok: true as const, badge })),
-      Effect.catchTag('InvalidPrompt', (e) => Effect.succeed({ ok: false as const, reason: e.reason })),
+      Effect.catchAll((e) => Effect.succeed(genErr(e))),
     ),
   )
 
@@ -40,7 +48,7 @@ export const regenerate = (id: string, payload: GenerateBadgeInput, force?: Forc
   run((c) =>
     c.badges.regenerate({ path: { id }, payload, urlParams: force ? { force } : {} }).pipe(
       Effect.map((badge) => ({ ok: true as const, badge })),
-      Effect.catchTag('InvalidPrompt', (e) => Effect.succeed({ ok: false as const, reason: e.reason })),
+      Effect.catchAll((e) => Effect.succeed(genErr(e))),
     ),
   )
 

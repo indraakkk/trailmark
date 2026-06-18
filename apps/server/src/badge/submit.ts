@@ -7,10 +7,8 @@
 import { Effect } from 'effect'
 import { type GenerateBadgeInput, InvalidPrompt } from '@trailmark/contract'
 import { buildPrompt } from './buildPrompt.js'
-import { Provider } from './provider.js'
+import { MAX_PROMPT, Provider } from './provider.js'
 import { insertGenerating, markFailed, putEmblemThenMarkReady } from './store.js'
-
-const MAX_PROMPT = 2048
 
 export const submitBadge = (input: GenerateBadgeInput, userId: string, force?: string) =>
   Effect.gen(function* () {

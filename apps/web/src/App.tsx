@@ -26,7 +26,8 @@ export function App() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
 
-  const [inputs, setInputs] = useState<BadgeInputs>(defaultInputs)
+  // Lazy initializer (React calls a function passed to useState once on mount).
+  const [inputs, setInputs] = useState<BadgeInputs>(() => defaultInputs())
   const [seed, setSeed] = useState<number | null>(null)
   const [mode, setMode] = useState<'create' | 'tweak'>('create')
   const [provenanceId, setProvenanceId] = useState<string | null>(null)

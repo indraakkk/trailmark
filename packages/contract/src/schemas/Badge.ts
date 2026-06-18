@@ -69,10 +69,12 @@ export const BadgeInputs = Schema.Struct({
 })
 export type BadgeInputs = Schema.Schema.Type<typeof BadgeInputs>
 
-/** POST /badges + /badges/:id/regenerate payload. `seed:null` ⇒ server rolls a fresh seed. */
+/** POST /badges + /badges/:id/regenerate payload. `seed:null` ⇒ server rolls a fresh seed.
+ *  seed is bounded to a non-negative int ≤ 2e9 so it round-trips through the `seed::int`
+ *  column cast without truncation (rejects NaN / out-of-range at decode → 400). */
 export const GenerateBadgeInput = Schema.Struct({
   inputs: BadgeInputs,
-  seed: Schema.NullOr(Schema.Number),
+  seed: Schema.NullOr(Schema.Int.pipe(Schema.between(0, 2_000_000_000))),
 })
 export type GenerateBadgeInput = Schema.Schema.Type<typeof GenerateBadgeInput>
 
@@ -83,7 +85,8 @@ export const BadgeView = Schema.Struct({
   builtPrompt: Schema.String,
   provider: Schema.String,
   seed: Schema.Number,
-  imageKey: Schema.NullOr(Schema.String),
+  // (no imageKey: the internal Garage object key never leaves the server; the client
+  //  derives the emblem URL from `id` via the /api/badges/:id/image proxy.)
   status: BadgeStatus,
   errorTag: Schema.NullOr(BadgeErrorTag),
   createdAt: Schema.Date,

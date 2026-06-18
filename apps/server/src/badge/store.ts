@@ -22,9 +22,10 @@ import { ObjectStorage } from '../infra/ObjectStorage.js'
 import type { Emblem } from './provider.js'
 
 // Shared projection: row columns → BadgeView field names. seed::int (our seeds are
-// < 2e9, well within int4) so pg returns a JS number, not a bigint string.
+// < 2e9, well within int4) so pg returns a JS number, not a bigint string. image_key
+// is deliberately NOT projected — it stays server-internal (the client uses the proxy).
 const VIEW_COLS = `id, inputs, built_prompt as "builtPrompt", provider, seed::int as seed,
-  image_key as "imageKey", status, error_tag as "errorTag", created_at as "createdAt"`
+  status, error_tag as "errorTag", created_at as "createdAt"`
 
 export const emblemKey = (id: string) => `emblems/${id}.jpg`
 
