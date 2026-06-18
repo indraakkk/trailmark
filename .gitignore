@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+packages/*/dist/
+apps/*/dist/
+*.tsbuildinfo
+
+# Local environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Local data — Garage object-store data dir (metadata + objects live here)
+.data/
+.tmp/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor / IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Nix result symlinks
+result
+result-*
+
+# Bun
+.bun/
+
+# Direnv
+.direnv/

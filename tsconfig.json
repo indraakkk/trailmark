@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.base.json",
+  "comment": "Solution root. Typecheck runs per-package via `bun run --filter '*' typecheck` (each does `tsc --noEmit`). This file is a thin pointer; per-package tsconfigs set composite:false + noEmit:true.",
+  "include": [],
+  "references": []
+}

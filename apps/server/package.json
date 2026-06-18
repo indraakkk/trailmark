@@ -1,0 +1,29 @@
+{
+  "name": "@trailmark/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/main.ts" },
+  "scripts": {
+    "dev": "TZ=UTC bun run --hot src/main.ts",
+    "start": "TZ=UTC bun run src/main.ts",
+    "migrate": "TZ=UTC bun run src/infra/migrate.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform": "0.96.1",
+    "@effect/platform-bun": "0.89.0",
+    "@effect/sql": "0.51.1",
+    "@effect/sql-pg": "0.52.1",
+    "@trailmark/contract": "workspace:*",
+    "@trailmark/db": "workspace:*",
+    "better-auth": "1.6.19",
+    "effect": "3.21.2",
+    "resend": "6.14.0"
+  },
+  "devDependencies": {
+    "@better-auth/cli": "latest",
+    "bun-types": "1.3.14",
+    "typescript": "6.0.3"
+  }
+}

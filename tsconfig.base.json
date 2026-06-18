@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "plugins": [{ "name": "@effect/language-service" }],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM"],
+    "jsx": "react-jsx",
+    "moduleDetection": "force",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+    "types": ["bun-types"],
+    "paths": {
+      "@trailmark/contract": ["./packages/contract/src/index.ts"],
+      "@trailmark/contract/*": ["./packages/contract/src/*"],
+      "@trailmark/db": ["./packages/db/src/index.ts"],
+      "@trailmark/db/*": ["./packages/db/src/*"]
+    }
+  },
+  "include": [],
+  "references": []
+}
