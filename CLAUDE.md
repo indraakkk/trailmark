@@ -150,7 +150,13 @@ effect@3.21.2
 ```
 
 Outside the locked set: `better-auth@1.6.19` (newest 1.6.x), `resend@6.14.0`,
-`@better-auth/cli` (dev). Do **not** add `pg` directly — it comes via `@effect/sql-pg`.
+`@better-auth/cli` (dev). **`pg@8.21.0` + `@types/pg@8.20.0` are pinned as direct
+`apps/server` deps** — under bun's **isolated linker** (per-workspace `node_modules`,
+the proven taprunning setup) transitive `pg` is *not* reachable from app code, so
+`auth.ts`'s `import { Pool } from 'pg'` needs a direct dep. Pin pg to the **exact
+version `@effect/sql-pg@0.52.1` resolves (8.21.0)** so both share ONE `pg-types`
+singleton (no drift). This supersedes the earlier "never add pg directly" rule,
+which assumed a hoisting linker. Re-check the pin on any `@effect/sql-pg` bump.
 Other pins: TypeScript `6.0.3`, Vite `8.0.14`, React `18.3.1`, `bun2nix 2.0.8`,
 Postgres `16` (`postgresql_16`).
 

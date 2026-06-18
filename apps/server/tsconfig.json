@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "composite": false, "noEmit": true, "types": ["bun-types"] },
+  "compilerOptions": { "composite": false, "declaration": false, "noEmit": true, "types": ["bun-types"] },
   "include": ["src/**/*"]
 }
