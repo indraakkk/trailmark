@@ -20,6 +20,7 @@
     name = "trailmark";
     description = "Trailmark finisher-badge app — Bun server + prod Garage + Caddy vhost on tap";
     categories = [ "Web Application" ];
+    readme = "Trailmark — a second app on `tap`, coexisting with taprunning. Adds trailmark-server (127.0.0.1:3001) + trailmark-migrate + a prod Garage daemon/bootstrap + an additive Caddy vhost and Postgres db/role. See the trailmark repo's docs/plan/24-deploy.md.";
   };
 
   roles.default = {

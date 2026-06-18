@@ -1,28 +1,48 @@
-name: Deploy (trailmark)
-# Fallback for `nix run .#clan-cli -- machines update tap` from local (PLAN phase 5).
-# Trailmark ships as a 2nd app inside TAPRUNNING's clan flake (ADR-0009), so this
-# workflow (1) proves the trailmark closure builds, then (2) bumps the `trailmark`
-# input in taprunning and lets taprunning's deploy.yml activate the box. Activation
-# secrets stay in taprunning only. Run on demand (release branch / dispatch), not per-PR.
+name: Deploy trailmark to tap
+# Deploys trailmark as a 2nd app on the clan.lol box `tap`, coexisting with taprunning.
+# tap's whole config is taprunning's `nixosConfigurations.tap`, so this builds + activates
+# THAT closure with the trailmark input re-locked to this commit — taprunning's services
+# are preserved (validated: the merged config evaluates to a valid system derivation).
+# Explicit trigger only (never auto-deploy on every push).
 on:
+  workflow_dispatch:
   push:
     branches: [release]
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-tap # share the lane with taprunning — never two activations
+  group: deploy-tap # SHARE the lane with taprunning's own deploy — never two activations on one box
   cancel-in-progress: false
 
 jobs:
-  proof:
-    name: Build trailmark closure (proof)
-    runs-on: ubuntu-latest # builds x86_64-linux NATIVELY (do not cross-build from the aarch64 mac)
-    timeout-minutes: 45
+  deploy:
+    name: Build tap closure (with trailmark) + activate over SSH
+    runs-on: ubuntu-latest # x86_64-linux native — matches nixosConfigurations.tap (no cross-build)
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Checkout trailmark
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          path: trailmark
+
+      # The clan that owns `tap` lives in taprunning. id_github_indraakkk (DEPLOY_SSH_KEY)
+      # can clone indraakkk/* over SSH. taprunning must already register the trailmark
+      # module + instance (nix/infra.nix) — done.
+      - name: Checkout taprunning (the clan that owns tap)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: indraakkk/taprunning
+          ref: main
+          ssh-key: ${{ secrets.DEPLOY_SSH_KEY }}
+          path: taprunning
+
+      # clan commits inventory.json on the runner checkout; a fresh runner has no git identity.
+      - name: Configure git identity
+        run: |
+          git config --global user.email "ci@trailmark.duckdns.org"
+          git config --global user.name "trailmark-ci"
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
@@ -34,23 +54,44 @@ jobs:
             extra-substituters = https://cache.clan.lol
             extra-trusted-public-keys = cache.clan.lol-1:3KztgSAB5R1M+Dz7vzkBGzXdodizbgLXGXKXlcQLA28=
 
-      # Fail-fast: realise the x86_64-linux app closure (bun2nix) before asking
-      # taprunning to deploy. `nix build`, NOT `flake check`.
-      - name: Pre-deploy build proof (app closure)
+      # DEPLOY_SSH_KEY's public half is in tap's root authorizedKeys (verified: it is the
+      # `…ARmc0KNpF indraakkk` key). clan activates over SSH to root@43.133.128.143.
+      - name: Set up deploy SSH key (tap)
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          cat > ~/.ssh/config <<'EOF'
+          Host 43.133.128.143
+            StrictHostKeyChecking accept-new
+            UserKnownHostsFile ~/.ssh/known_hosts
+          EOF
+          chmod 600 ~/.ssh/config
+
+      # Fail-fast: realise the trailmark x86_64-linux closure before driving activation.
+      - name: Pre-deploy build proof (trailmark closure)
+        working-directory: trailmark
         run: nix build .#packages.x86_64-linux.trailmark -L
 
-  trigger:
-    name: Bump trailmark input in taprunning + deploy
-    needs: proof
-    runs-on: ubuntu-latest
-    steps:
-      # PAT (TAPRUNNING_DISPATCH) with repo+workflow scope on taprunning. Advances the
-      # trailmark input to this commit and dispatches taprunning's deploy.yml.
-      - name: Dispatch taprunning deploy
+      # Re-lock taprunning's `trailmark` input to this just-pushed commit, then build the
+      # tap closure (with trailmark) in CI and activate over SSH. SOPS_AGE_KEY decrypts the
+      # clan vars (must be in the sops admins/ci group). nixos-rebuild is put on PATH from
+      # the locked nixpkgs (clan execs a bare `nixos-rebuild switch` on the build host).
+      - name: Deploy (clan machines update tap)
+        working-directory: taprunning
         env:
-          GH_TOKEN: ${{ secrets.TAPRUNNING_DISPATCH }}
+          SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
         run: |
-          gh workflow run deploy.yml \
-            --repo indrakoslab/taprunning \
-            --ref release \
-            -f trailmark_ref="${{ github.sha }}"
+          nix flake lock --update-input trailmark
+          nix shell --inputs-from . nixpkgs#nixos-rebuild --command \
+            nix run .#clan-cli -- machines update tap \
+              --build-host localhost \
+              --host-key-check none
+
+      - name: Failure guidance
+        if: failure()
+        run: |
+          echo "Deploy failed. Checklist: (1) GitHub secrets DEPLOY_SSH_KEY + SOPS_AGE_KEY set;"
+          echo "(2) trailmark.duckdns.org A-record → 43.133.128.143 (ACME); (3) clan vars for"
+          echo "trailmark generated + committed in taprunning (clan vars generate tap);"
+          echo "(4) indraakkk/trailmark reachable as the taprunning flake input."
