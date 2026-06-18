@@ -8,7 +8,7 @@ create table badges (
   id            uuid primary key default gen_random_uuid(),
   inputs        jsonb        not null,          -- full BadgeInputs: source of truth for re-typeset + re-gen
   built_prompt  text         not null,          -- exact deterministic string sent to the model (demo gold)
-  provider      text         not null,          -- 'cloudflare' | 'pollinations'
+  provider      text         not null default 'pending', -- 'pending' until ready, then 'cloudflare' | 'pollinations'
   seed          bigint       not null,          -- reused for "keep seed"
   image_key     text,                           -- Garage key emblems/<id>.jpg; null until ready
   status        badge_status not null default 'generating',
