@@ -69,6 +69,7 @@
             inherit (import ./lib/systemdSecurity.nix) commonSecurityConfig;
             stateDir = "/var/lib/${settings.stateDirectory}";
             vars = config.clan.core.vars.generators.trailmark.files;
+            providerVars = config.clan.core.vars.generators.trailmark-providers.files;
             garageEnv = vars."garage-env".path;
             upstream = "127.0.0.1:${toString settings.port}";
 
@@ -114,13 +115,9 @@
             ];
 
             # ── clan vars (sops) — secrets reach units ONLY via LoadCredential ─
-            # Fully GENERATED (no interactive prompts) so `clan vars generate tap` is
-            # non-interactive and the first deploy is automatable. The server runs on the
-            # Pollinations fallback (no CF token) + the logged magic link (no Resend send).
-            # To add the Cloudflare primary / Resend later: add prompts here
-            # (cf-api-token/cf-account-id/resend-api-key, type hidden|line, persist), wire
-            # them via LoadCredential + the ExecStart wrapper below, re-run
-            # `clan vars generate tap`, and redeploy.
+            # GENERATED secrets (no prompts) so the first deploy is automatable: the random
+            # better-auth-secret + garage-env (S3 creds). KEEP these in their own generator so
+            # nothing here ever rotates them.
             clan.core.vars.generators.trailmark = {
               runtimeInputs = [ pkgs.openssl ];
               files.better-auth-secret = { };
@@ -140,6 +137,29 @@
                   echo "S3_SECRET_ACCESS_KEY=$SECRET"
                 } > "$out/garage-env"
               '';
+            };
+
+            # ── Provider secrets — a SEPARATE generator (PROMPTED) so generating them
+            # never re-runs the generated generator above (which would rotate the S3 key +
+            # invalidate sessions). `clan vars generate tap` prompts for these once + sops-
+            # encrypts them; the server reads them via LoadCredential below. CF empty ⇒
+            # provider falls back to Pollinations; RESEND empty ⇒ logged magic link only.
+            clan.core.vars.generators.trailmark-providers = {
+              prompts.cf-account-id = {
+                description = "Cloudflare account id (CF_ACCOUNT_ID)";
+                type = "line";
+                persist = true;
+              };
+              prompts.cf-api-token = {
+                description = "Cloudflare Workers AI API token (CF_API_TOKEN, flux-1-schnell)";
+                type = "hidden";
+                persist = true;
+              };
+              prompts.resend-api-key = {
+                description = "Resend API key (RESEND_API_KEY)";
+                type = "hidden";
+                persist = true;
+              };
             };
 
             # ── Prod Garage daemon (single-instance, lmdb, loopback only) ──────
@@ -252,6 +272,9 @@
                 LoadCredential = [
                   "garage-env:${garageEnv}" # carries S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY
                   "better-auth-secret:${vars.better-auth-secret.path}"
+                  "cf-account-id:${providerVars.cf-account-id.path}"
+                  "cf-api-token:${providerVars.cf-api-token.path}"
+                  "resend-api-key:${providerVars.resend-api-key.path}"
                 ];
                 ExecStart = lib.getExe (
                   pkgs.writeShellApplication {
@@ -268,7 +291,11 @@
                       . "$CREDENTIALS_DIRECTORY/garage-env"
                       set +a
                       BETTER_AUTH_SECRET=$(cat "$CREDENTIALS_DIRECTORY/better-auth-secret"); export BETTER_AUTH_SECRET
-                      # No CF_API_TOKEN ⇒ provider uses Pollinations; no RESEND_API_KEY ⇒ logged magic link.
+                      # Provider/email secrets. Empty CF token ⇒ Pollinations fallback; empty
+                      # RESEND key ⇒ logged magic link only (the server tolerates both).
+                      CF_ACCOUNT_ID=$(cat "$CREDENTIALS_DIRECTORY/cf-account-id"); export CF_ACCOUNT_ID
+                      CF_API_TOKEN=$(cat "$CREDENTIALS_DIRECTORY/cf-api-token"); export CF_API_TOKEN
+                      RESEND_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/resend-api-key"); export RESEND_API_KEY
                       exec bun run ${appPkg}/app/apps/server/src/main.ts
                     '';
                   }
