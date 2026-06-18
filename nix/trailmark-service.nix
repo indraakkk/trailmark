@@ -259,8 +259,14 @@
                     runtimeInputs = [ pkgs.bun ];
                     text = ''
                       set -euo pipefail
-                      # garage-env has S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY (+ harmless GARAGE_*).
-                      set -a; . "$CREDENTIALS_DIRECTORY/garage-env"; set +a
+                      # garage-env (LoadCredential) carries S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY
+                      # (+ harmless GARAGE_*). It is a RUNTIME file, absent at build → disable SC1091
+                      # (writeShellApplication fails the build on it otherwise). set -a exports the
+                      # sourced vars so bun sees them.
+                      set -a
+                      # shellcheck disable=SC1091
+                      . "$CREDENTIALS_DIRECTORY/garage-env"
+                      set +a
                       BETTER_AUTH_SECRET=$(cat "$CREDENTIALS_DIRECTORY/better-auth-secret"); export BETTER_AUTH_SECRET
                       # No CF_API_TOKEN ⇒ provider uses Pollinations; no RESEND_API_KEY ⇒ logged magic link.
                       exec bun run ${appPkg}/app/apps/server/src/main.ts
