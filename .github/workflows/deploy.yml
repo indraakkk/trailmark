@@ -1,0 +1,56 @@
+name: Deploy (trailmark)
+# Fallback for `nix run .#clan-cli -- machines update tap` from local (PLAN phase 5).
+# Trailmark ships as a 2nd app inside TAPRUNNING's clan flake (ADR-0009), so this
+# workflow (1) proves the trailmark closure builds, then (2) bumps the `trailmark`
+# input in taprunning and lets taprunning's deploy.yml activate the box. Activation
+# secrets stay in taprunning only. Run on demand (release branch / dispatch), not per-PR.
+on:
+  push:
+    branches: [release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-tap # share the lane with taprunning — never two activations
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    name: Build trailmark closure (proof)
+    runs-on: ubuntu-latest # builds x86_64-linux NATIVELY (do not cross-build from the aarch64 mac)
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          determinate: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          extra-conf: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://cache.clan.lol
+            extra-trusted-public-keys = cache.clan.lol-1:3KztgSAB5R1M+Dz7vzkBGzXdodizbgLXGXKXlcQLA28=
+
+      # Fail-fast: realise the x86_64-linux app closure (bun2nix) before asking
+      # taprunning to deploy. `nix build`, NOT `flake check`.
+      - name: Pre-deploy build proof (app closure)
+        run: nix build .#packages.x86_64-linux.trailmark -L
+
+  trigger:
+    name: Bump trailmark input in taprunning + deploy
+    needs: proof
+    runs-on: ubuntu-latest
+    steps:
+      # PAT (TAPRUNNING_DISPATCH) with repo+workflow scope on taprunning. Advances the
+      # trailmark input to this commit and dispatches taprunning's deploy.yml.
+      - name: Dispatch taprunning deploy
+        env:
+          GH_TOKEN: ${{ secrets.TAPRUNNING_DISPATCH }}
+        run: |
+          gh workflow run deploy.yml \
+            --repo indrakoslab/taprunning \
+            --ref release \
+            -f trailmark_ref="${{ github.sha }}"
