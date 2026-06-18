@@ -113,23 +113,15 @@
             ];
 
             # ── clan vars (sops) — secrets reach units ONLY via LoadCredential ─
+            # Fully GENERATED (no interactive prompts) so `clan vars generate tap` is
+            # non-interactive and the first deploy is automatable. The server runs on the
+            # Pollinations fallback (no CF token) + the logged magic link (no Resend send).
+            # To add the Cloudflare primary / Resend later: add prompts here
+            # (cf-api-token/cf-account-id/resend-api-key, type hidden|line, persist), wire
+            # them via LoadCredential + the ExecStart wrapper below, re-run
+            # `clan vars generate tap`, and redeploy.
             clan.core.vars.generators.trailmark = {
               runtimeInputs = [ pkgs.openssl ];
-              prompts.cf-api-token = {
-                description = "Cloudflare Workers AI API token (flux-1-schnell)";
-                type = "hidden";
-                persist = true;
-              };
-              prompts.cf-account-id = {
-                description = "Cloudflare account id";
-                type = "line";
-                persist = true;
-              };
-              prompts.resend-api-key = {
-                description = "Resend API key (sandbox onboarding@resend.dev only emails the account owner; the logged link is the demo path)";
-                type = "hidden";
-                persist = true;
-              };
               files.better-auth-secret = { };
               # Single env file consumed by the Garage DAEMON (environmentFile) AND the
               # bootstrap unit AND the server (S3 creds) — one source of truth, no cold-boot race.
@@ -258,10 +250,7 @@
                 ReadWritePaths = [ stateDir ];
                 LoadCredential = [
                   "garage-env:${garageEnv}" # carries S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY
-                  "cf-api-token:${vars.cf-api-token.path}"
-                  "cf-account-id:${vars.cf-account-id.path}"
                   "better-auth-secret:${vars.better-auth-secret.path}"
-                  "resend-api-key:${vars.resend-api-key.path}"
                 ];
                 ExecStart = lib.getExe (
                   pkgs.writeShellApplication {
@@ -271,10 +260,8 @@
                       set -euo pipefail
                       # garage-env has S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY (+ harmless GARAGE_*).
                       set -a; . "$CREDENTIALS_DIRECTORY/garage-env"; set +a
-                      CF_API_TOKEN=$(cat "$CREDENTIALS_DIRECTORY/cf-api-token"); export CF_API_TOKEN
-                      CF_ACCOUNT_ID=$(cat "$CREDENTIALS_DIRECTORY/cf-account-id"); export CF_ACCOUNT_ID
                       BETTER_AUTH_SECRET=$(cat "$CREDENTIALS_DIRECTORY/better-auth-secret"); export BETTER_AUTH_SECRET
-                      RESEND_API_KEY=$(cat "$CREDENTIALS_DIRECTORY/resend-api-key"); export RESEND_API_KEY
+                      # No CF_API_TOKEN ⇒ provider uses Pollinations; no RESEND_API_KEY ⇒ logged magic link.
                       exec bun run ${appPkg}/app/apps/server/src/main.ts
                     '';
                   }

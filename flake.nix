@@ -39,8 +39,10 @@
         ./nix/packages.nix # packages.<system>.trailmark (mkBunApp prod artifact)
       ];
 
-      # The reusable clan service module taprunning imports to run trailmark as a 2nd
-      # app on `tap` (systemd units + prod Garage + Caddy vhost + Postgres + secrets).
-      flake.nixosModules.trailmark = import ./nix/trailmark-service.nix;
+      # The reusable clan service module lives at ./nix/trailmark-service.nix. taprunning
+      # imports it BY PATH from this flake input — `clan.modules.trailmark = import
+      # "${inputs.trailmark}/nix/trailmark-service.nix"` — NOT via flake.nixosModules,
+      # which flake-parts coerces to a NixOS-module class and strips the clan.service
+      # manifest/roles. (packages.<system>.trailmark below is the buildable artifact.)
     };
 }
