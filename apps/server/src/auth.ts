@@ -17,6 +17,13 @@ export const auth = betterAuth({
   // new Pool() reads PGHOST/PGUSER/PGDATABASE/PGPORT/PGPASSWORD — that is the pg
   // driver's env support, NOT Better Auth. No DATABASE_URL is passed.
   database: new Pool(),
+  // Dev serves the web from :5173 (Vite) proxying /api → :3000, so the browser
+  // Origin (localhost:5173) ≠ BETTER_AUTH_URL (localhost:3000) and Better Auth's
+  // CSRF origin check 403s the magic-link POST. Trust the Vite dev origin. In prod
+  // web+server are same-origin so this is a no-op. Override via csv env if needed.
+  trustedOrigins: process.env['BETTER_AUTH_TRUSTED_ORIGINS']?.split(',').map((s) => s.trim()) ?? [
+    'http://localhost:5173',
+  ],
   plugins: [
     magicLink({
       // expiresIn defaults to 300s (5 min). disableSignUp defaults false → a
