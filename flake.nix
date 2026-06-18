@@ -33,12 +33,14 @@
         "x86_64-linux"
       ];
       imports = [
-        ./nix/dev.nix # devShell: bun + pg client + process-compose + bun2nix (Phase 1)
-        ./nix/processes.nix # `nix run .#dev`: garage + garage-init + migrate + server + web (Phase 1/3)
-        # Added in the deploy phase (Phase 4), once bun.lock.nix exists:
-        #   ./nix/bun-deps.nix   # bun2nix fetchBunDeps (deterministic prod deps)
-        #   ./nix/packages.nix   # mkBunApp prod package
-        #   ./nix/infra.nix      # clan: `tap` machine module + Caddy/Garage/Postgres
+        ./nix/dev.nix # devShell: bun + pg client + process-compose + bun2nix
+        ./nix/processes.nix # `nix run .#dev`: garage + garage-init + migrate + server + web
+        ./nix/bun-deps.nix # bun2nix fetchBunDeps (deterministic prod deps) + overlaid pkgs
+        ./nix/packages.nix # packages.<system>.trailmark (mkBunApp prod artifact)
       ];
+
+      # The reusable clan service module taprunning imports to run trailmark as a 2nd
+      # app on `tap` (systemd units + prod Garage + Caddy vhost + Postgres + secrets).
+      flake.nixosModules.trailmark = import ./nix/trailmark-service.nix;
     };
 }

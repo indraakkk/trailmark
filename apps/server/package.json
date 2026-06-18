@@ -23,7 +23,6 @@
     "resend": "6.14.0"
   },
   "devDependencies": {
-    "@better-auth/cli": "latest",
     "@types/pg": "8.20.0",
     "bun-types": "1.3.14",
     "typescript": "6.0.3"
