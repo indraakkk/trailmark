@@ -3,11 +3,15 @@ name: Deploy trailmark to tap
 # tap's whole config is taprunning's `nixosConfigurations.tap`, so this builds + activates
 # THAT closure with the trailmark input re-locked to this commit — taprunning's services
 # are preserved (validated: the merged config evaluates to a valid system derivation).
-# Explicit trigger only (never auto-deploy on every push).
+# Explicit trigger only (never auto-deploy on every push). A release is cut by merging
+# `main` into a `release-<date>` branch (e.g. release-2026-06-19); the bare `release`
+# branch and manual workflow_dispatch also trigger. main/feature pushes never deploy.
 on:
   workflow_dispatch:
   push:
-    branches: [release]
+    branches:
+      - release
+      - 'release-*'
 
 permissions:
   contents: read
