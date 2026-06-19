@@ -30,6 +30,15 @@ export class BrokenResponse extends Schema.TaggedError<BrokenResponse>()(
   HttpApiSchema.annotations({ status: 502 }),
 ) {}
 
+// ── Generation guardrail (revamp) ──────────────────────────────────────────
+// Checked SYNCHRONOUSLY at submit (like InvalidPrompt): if the user has no credits
+// left, the POST fails 402 and no row is created. `balance` is the remaining count (0).
+export class OutOfCredits extends Schema.TaggedError<OutOfCredits>()(
+  'OutOfCredits',
+  { balance: Schema.Int },
+  HttpApiSchema.annotations({ status: 402 }),
+) {}
+
 // ── Auth / ownership paths — NOT part of the three generation failures ──────
 // Unauthorized: no session. NotFound: non-owner OR missing row on one/image —
 // 404 (NOT 403) so a badge's existence never leaks.

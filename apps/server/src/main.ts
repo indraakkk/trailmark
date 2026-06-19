@@ -20,8 +20,15 @@ import { CurrentUser, TrailmarkApi } from '@trailmark/contract'
 import { auth } from './auth.js'
 import { AuthorizationLive } from './auth-middleware.js'
 import { ProviderLive } from './badge/provider.js'
-import { getOwnedBadge, getOwnedEmblem, listReadyBadgesNewestFirst } from './badge/store.js'
-import { submitBadge } from './badge/submit.js'
+import {
+  deleteBadge,
+  getCredits,
+  getOwnedBadge,
+  getOwnedEmblem,
+  listBadgesNewestFirst,
+  setKeeper,
+} from './badge/store.js'
+import { retryBadge, submitBadge } from './badge/submit.js'
 import { DbLive } from './infra/Db.js'
 import { GarageLive } from './infra/ObjectStorage.js'
 
@@ -50,14 +57,29 @@ const BadgesLive = HttpApiBuilder.group(TrailmarkApi, 'badges', (h) =>
       CurrentUser.pipe(Effect.flatMap((u) => submitBadge(payload, u, urlParams.force))),
     )
     .handle('regenerate', ({ payload, urlParams }) =>
-      // path.id is provenance only; the seed comes from the payload ("keep seed").
+      // Tweak == submit: a NEW owner-stamped row, seed from the payload. The path id is the
+      // badge being tweaked (not persisted as lineage; no row is mutated).
       CurrentUser.pipe(Effect.flatMap((u) => submitBadge(payload, u, urlParams.force))),
     )
+    // Retry a FAILED badge in place (re-forks onto the SAME row); force gated to demo acct.
+    .handle('retry', ({ path, urlParams }) =>
+      CurrentUser.pipe(Effect.flatMap((u) => retryBadge(path.id, u, urlParams.force))),
+    )
     .handle('gallery', () =>
-      CurrentUser.pipe(Effect.flatMap((u) => listReadyBadgesNewestFirst(u.userId))),
+      CurrentUser.pipe(Effect.flatMap((u) => listBadgesNewestFirst(u.userId))),
     )
     .handle('one', ({ path }) =>
       CurrentUser.pipe(Effect.flatMap((u) => getOwnedBadge(path.id, u.userId))),
+    )
+    // Promote to keeper / delete: both return the refreshed full collection.
+    .handle('setKeeper', ({ path }) =>
+      CurrentUser.pipe(Effect.flatMap((u) => setKeeper(path.id, u.userId))),
+    )
+    .handle('remove', ({ path }) =>
+      CurrentUser.pipe(Effect.flatMap((u) => deleteBadge(path.id, u.userId))),
+    )
+    .handle('credits', () =>
+      CurrentUser.pipe(Effect.flatMap((u) => getCredits(u.userId))),
     )
     .handle('image', ({ path }) =>
       CurrentUser.pipe(Effect.flatMap((u) => getOwnedEmblem(path.id, u.userId))),

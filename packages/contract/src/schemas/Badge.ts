@@ -39,7 +39,8 @@ export const BadgePalette = Schema.Literal(
 )
 export type BadgePalette = Schema.Schema.Type<typeof BadgePalette>
 
-export const BadgeDistance = Schema.Literal(
+// The 8 canonical presets. A bare preset string is the legacy/compact distance value.
+export const DistancePreset = Schema.Literal(
   '5K',
   '10K',
   'Half',
@@ -49,6 +50,25 @@ export const BadgeDistance = Schema.Literal(
   '100K',
   '100-Miler',
 )
+export type DistancePreset = Schema.Schema.Type<typeof DistancePreset>
+
+export const DistanceUnit = Schema.Literal('km', 'mi')
+export type DistanceUnit = Schema.Schema.Type<typeof DistanceUnit>
+
+/** Custom distance — number+unit and/or a free-text label (e.g. "Backyard Ultra").
+ *  `label` (≤40) wins on the medal; else `num`+`unit`; else falls back to a preset. */
+export const CustomDistance = Schema.Struct({
+  kind: Schema.Literal('custom'),
+  num: Schema.NullOr(Schema.Number),
+  unit: DistanceUnit,
+  label: Schema.NullOr(Schema.String.pipe(Schema.maxLength(40))),
+})
+export type CustomDistance = Schema.Schema.Type<typeof CustomDistance>
+
+// Distance is preset OR custom. Typography-only — NEVER reaches the model. The union
+// is backward-compatible: rows persisted before the revamp stored a bare preset string
+// (e.g. "5K"), which still decodes as a DistancePreset.
+export const BadgeDistance = Schema.Union(DistancePreset, CustomDistance)
 export type BadgeDistance = Schema.Schema.Type<typeof BadgeDistance>
 
 export const BadgeStatus = Schema.Literal('generating', 'ready', 'failed')
@@ -89,6 +109,13 @@ export const BadgeView = Schema.Struct({
   //  derives the emblem URL from `id` via the /api/badges/:id/image proxy.)
   status: BadgeStatus,
   errorTag: Schema.NullOr(BadgeErrorTag),
+  // The "keeper" (hero) badge for its race. At most one ready badge per (user, race)
+  // is keeper; the set-keeper endpoint flips siblings. Defaults false.
+  keeper: Schema.Boolean,
   createdAt: Schema.Date,
 })
 export type BadgeView = Schema.Schema.Type<typeof BadgeView>
+
+/** Remaining generation credits for the current user (a soft guardrail; ADR-0016 scope). */
+export const CreditsView = Schema.Struct({ balance: Schema.Int })
+export type CreditsView = Schema.Schema.Type<typeof CreditsView>

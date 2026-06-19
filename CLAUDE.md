@@ -7,16 +7,44 @@ and this file if a decision genuinely changes.
 
 ## What this repo is right now
 
-**Planning/spec only.** On disk there are ~36 Markdown files and nothing else:
-`PLAN.md`, `docs/adr/` (18 MADR records), and `docs/plan/` (16 sequenced build chunks).
-There is **no source code, no `package.json`, no `flake.nix`, no lockfile, and it is not
-a git repository yet.** Every command and config path below is *specified* in the docs
-for a monorepo that has **not been scaffolded**. Do not try to run them until the
-scaffold (`docs/plan/22-scaffold.md`) exists.
+**Scaffolded and building.** The monorepo exists: `apps/server`, `apps/web`,
+`packages/contract`, `packages/db`, plus `flake.nix`, `package.json`, `bun.lock`. It is a
+git repository. The build is green (`bun run typecheck` / `bun run build` pass). The ADR
+docs (`docs/adr/`, `docs/plan/`, `PLAN.md`) remain the authoritative "why"; this section's
+old "spec-only / no source" note is obsolete.
 
 - **Project codename:** `trailmark` (the on-disk folder is `niche`).
 - **Workspace package scope:** `@trailmark/*` (`contract`, `db`, `server`, `web`).
 - **Start here:** `PLAN.md` is the master build sequence and decisions index.
+
+### UI/UX revamp (post-ADR-0017) — what changed from the original build
+A major web revamp turned the flat output grid into a **per-race trophy case**. Binding
+deltas (ADR-pending; update an ADR if any of these is revisited):
+- **Web is screen-based, inline-styled.** `apps/web/src/App.tsx` routes four surfaces —
+  `screens/Collection.tsx` (home, grouped by race: hero "keeper" + collapsible variant
+  strip + a "Needs attention" area for failures), `screens/Studio.tsx` (generator),
+  `screens/BadgeDetail.tsx` (share/order), `screens/DesignSystem.tsx`. Tokens live in
+  `theme.ts` (`T`, `FONT_DISP`/`FONT_UI`); grouping/sort in `lib.ts`; the Studio form +
+  screen prop contracts in `types.ts`. Screens use **inline styles** (the design mockup's
+  idiom); `styles.css` is globals only (resets, fonts, keyframes, focus rings).
+- **`Medal.tsx` replaces `BadgeOverlay.tsx`** (deleted, with `ChipForm`/`Gallery`). It is
+  the **single-ink** medal: one ink per face (light face→dark ink, dark face→light ink),
+  race name + distance on the arcs, finish-time/date in a palette-matched **scrim plate**
+  (the legibility fix; no more white-outline). The emblem is composited **inside** the SVG
+  so `exportBadgePng` still rasterizes face+emblem+type faithfully.
+- **Fonts are Saira Condensed (display + medal) + Hanken Grotesk (UI)** — Oswald is gone.
+- **Distance is `Union(preset | {kind:'custom',num,unit,label})`** in the contract
+  (backward-compatible: legacy bare-string rows still decode). Typography-only as before —
+  `buildPrompt` is unchanged and still takes only `{style,motif,palette}`.
+- **New badge endpoints** (`packages/contract/src/api.ts`, all owner-scoped, 404-not-403):
+  `retry` (POST `/badges/:id/retry`) re-runs a **FAILED** badge **in place** on the SAME
+  row (no new tile) with its stored prompt+seed; `setKeeper`, `remove` (both return the
+  refreshed collection); `credits` (GET `/credits`). `gallery` now returns **all** statuses
+  (the Collection needs generating/failed too); the image proxy still guards ready-only.
+- **Keeper + credits are DB-backed** (migration `0003_revamp.sql`: `badges.keeper` +
+  `credits` table, default balance 20). Every generation/regenerate/retry spends one credit
+  atomically; out-of-credits is a synchronous typed `OutOfCredits` (402). Tweak/regenerate
+  still makes a NEW row; only **retry** mutates the failed row.
 
 ## The product (ADR-0003, ADR-0004)
 
@@ -249,8 +277,11 @@ This is a tight take-home surface; deferred concerns are documented trade-offs, 
   `toBlob` `SecurityError`). Also set explicit `width/height` on the clone (Firefox).
 - **Web-font race:** `await document.fonts.ready` before rasterizing SVG→PNG, or text falls
   back to the wrong font.
-- **Re-generation creates a NEW row** owned by the current user — never mutate the original.
-  "New look" sets `seed=null`; "Keep seed" reuses the saved seed.
+- **Re-generation (Tweak) creates a NEW row** owned by the current user — never mutate the
+  original. (Post-revamp the Studio's single "Generate" always rolls a fresh seed; the old
+  "Keep seed" affordance was dropped.) **Exception — `retry`:** retrying a **FAILED** badge
+  re-runs generation **in place on the SAME row** (`markGeneratingForRetry` flips it
+  failed→generating; no new tile), reusing the row's stored `built_prompt` + `seed`.
 - **Generated / single-owner artifacts — do not hand-edit:** `0001_auth.sql`
   (regenerate via the better-auth CLI), `bun.lock.nix` (regenerate via `bun2nix` whenever
   `bun.lock` changes), `bun.lock`, and `dist/` build outputs.
