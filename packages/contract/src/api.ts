@@ -10,10 +10,10 @@ import { InvalidPrompt, NotFound } from './errors.js'
 import { BadgeView, GenerateBadgeInput } from './schemas/Badge.js'
 import { Authorization } from './auth.js'
 
-// Demo hook (server-gated by DEMO_HOOKS): ?force= deterministically triggers a
-// failure state on camera. GenTimeout/BrokenResponse from a real generation settle
-// on the ROW (status:'failed') and surface via poll/gallery, not as the POST's error;
-// only InvalidPrompt is checked synchronously, so it is the POST's typed error.
+// Demo hook (server-gated to the demo account via DEMO_ACCOUNT_EMAIL): ?force=
+// deterministically triggers a failure state on camera. timeout/broken settle on the ROW
+// (status:'failed') and surface via poll/gallery, not as the POST's error; invalid is
+// checked synchronously (like a real blocked prompt), so it is the POST's typed 422.
 const ForceParam = Schema.Struct({
   force: Schema.optional(Schema.Literal('timeout', 'invalid', 'broken')),
 })

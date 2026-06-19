@@ -94,10 +94,22 @@ export function BadgeOverlay({ emblemUrl, raceName, distanceLabel, finishTime, d
 ```ts
 export async function exportBadgePng(svgEl: SVGSVGElement, fileName: string) {
   await document.fonts.ready // ensure the web font is loaded before raster
-  const xml = new XMLSerializer().serializeToString(svgEl)
+  const clone = svgEl.cloneNode(true) as SVGSVGElement
+  clone.setAttribute('width', '1024'); clone.setAttribute('height', '1024') // explicit px (Firefox)
+  // SVG-in-<img> renders restricted: it won't fetch the external <image href>, so inline the
+  // emblem as a data: URL first (the same-origin fetch carries the session cookie).
+  const emblem = clone.querySelector('image')
+  if (emblem) {
+    const blob = await (await fetch(emblem.getAttribute('href')!)).blob()
+    const dataUrl = await new Promise<string>((ok) => {
+      const fr = new FileReader(); fr.onload = () => ok(fr.result as string); fr.readAsDataURL(blob) })
+    emblem.setAttribute('href', dataUrl)
+    emblem.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl) // old-Safari fallback
+  }
+  const xml = new XMLSerializer().serializeToString(clone)
   const svgUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)))
   const img = await new Promise<HTMLImageElement>((res, rej) => {
-    const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => res(i); i.onerror = rej; i.src = svgUrl })
+    const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = svgUrl })
   const canvas = Object.assign(document.createElement('canvas'), { width: 1024, height: 1024 })
   canvas.getContext('2d')!.drawImage(img, 0, 0, 1024, 1024)
   const blob = await new Promise<Blob>((r) => canvas.toBlob((b) => r(b!), 'image/png'))
@@ -106,7 +118,7 @@ export async function exportBadgePng(svgEl: SVGSVGElement, fileName: string) {
 }
 ```
 
-> **Two real gotchas (verified):** (1) **Canvas taint** — the `<image href>` must be same-origin or `toBlob` throws `SecurityError`. So we serve the emblem from **our own** `GET /api/badges/:id/image` proxy (streamed from Garage), never the provider URL, and set `crossOrigin='anonymous'`. (2) **Web-font race** — `await document.fonts.ready` before rastering, or the text falls back. We persist only the raw emblem; the composite is re-typeset live from the row's `inputs`, so the gallery thumbnail stays editable.
+> **Two real gotchas (verified):** (1) **SVG-in-`<img>` is restricted** — when the serialized SVG is loaded into an `<img>` to raster, the browser will **not** fetch the external `<image href>` (our same-origin `GET /api/badges/:id/image` proxy, streamed from Garage), so a referenced emblem rasterizes blank. Fetch the emblem and **inline it as a base64 `data:` URL** before serializing; the same-origin fetch carries the session cookie and keeps the canvas untainted (no `toBlob` `SecurityError`). Never reference the provider URL directly. (2) **Web-font race** — `await document.fonts.ready` before rastering, or the text falls back. We persist only the raw emblem; the composite is re-typeset live from the row's `inputs`, so the gallery thumbnail stays editable.
 
 ## 3.4 Re-generation UX
 

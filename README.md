@@ -111,14 +111,16 @@ row is the source of truth for the outcome, so a generation outliving its reques
 
 ## Failure handling (demo each on camera)
 
-The three generation failures are the heart of the design. Gated behind `DEMO_HOOKS=true`,
+The three generation failures are the heart of the design. The hooks are gated **server-side
+to the demo account** (`DEMO_ACCOUNT_EMAIL`, default `indrakoslab@gmail.com`; empty disables)
+— a stray `?force=` from any other user is ignored. Signed in as that account,
 `?force=timeout|invalid|broken` triggers each deterministically:
 
-| `?force=` | Settles the row as | HTTP status of the tag |
+| `?force=` | Outcome | HTTP status of the tag |
 |---|---|---|
-| `timeout` | `failed` / `GenTimeout` | 504 |
-| `invalid` | `failed` / `InvalidPrompt` | 422 |
-| `broken`  | `failed` / `BrokenResponse` | 502 |
+| `timeout` | row settles `failed` / `GenTimeout` (eventual, via poll) | 504 |
+| `invalid` | synchronous `InvalidPrompt` on the POST — no row inserted | 422 |
+| `broken`  | row settles `failed` / `BrokenResponse` (eventual, via poll) | 502 |
 
 `InvalidPrompt` is also the **synchronous** 422 on submit; `GenTimeout`/`BrokenResponse` are
 **eventual** (recorded on the row, surfaced via poll/gallery with a retry button). The UI has

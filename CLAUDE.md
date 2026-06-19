@@ -240,9 +240,13 @@ This is a tight take-home surface; deferred concerns are documented trade-offs, 
 - **Double text-suppression is load-bearing**, not redundant: "no text / no letters / no
   numbers" appears in **both** the RING_RESERVATION and AVOID clauses — do not "clean it up".
   It is the deliberate demonstration of the model's limitations (~40% of the grade).
-- **Canvas taint:** the overlay `<image href>` must be **same-origin** (the
-  `/api/badges/:id/image` proxy), set `crossOrigin='anonymous'`, or `canvas.toBlob` throws
-  `SecurityError`. Never reference the provider URL directly.
+- **Export = inline the emblem:** the overlay `<image href>` must be **same-origin** (the
+  `/api/badges/:id/image` proxy) — never the provider URL. For PNG export, `exportBadgePng`
+  **fetches the emblem and inlines it as a base64 `data:` URL** before serializing: an SVG
+  loaded into `<img>` renders in *restricted mode* and will **not** fetch an external
+  `<image href>`, so a referenced emblem rasterizes blank (text-only — the bug this fixed).
+  The same-origin fetch carries the session cookie and keeps the canvas untainted (no
+  `toBlob` `SecurityError`). Also set explicit `width/height` on the clone (Firefox).
 - **Web-font race:** `await document.fonts.ready` before rasterizing SVG→PNG, or text falls
   back to the wrong font.
 - **Re-generation creates a NEW row** owned by the current user — never mutate the original.
@@ -250,8 +254,12 @@ This is a tight take-home surface; deferred concerns are documented trade-offs, 
 - **Generated / single-owner artifacts — do not hand-edit:** `0001_auth.sql`
   (regenerate via the better-auth CLI), `bun.lock.nix` (regenerate via `bun2nix` whenever
   `bun.lock` changes), `bun.lock`, and `dist/` build outputs.
-- **Failure-demo hooks:** `DEMO_HOOKS` config (default false in prod) + `?force=timeout|
-  invalid|broken` deterministically trigger the 3 failure states on camera.
+- **Failure-demo hooks:** `?force=timeout|invalid|broken` deterministically trigger the 3
+  failure states on camera, gated **server-side to the demo account** (`DEMO_ACCOUNT_EMAIL`,
+  default `indrakoslab@gmail.com`; empty disables — supersedes the old `DEMO_HOOKS` bool).
+  The compare is case-insensitive/trimmed/fail-closed in `submit.ts`; the web `<select>` is
+  cosmetic-only. `invalid` is synchronous (422 on the POST, no row); `timeout`/`broken`
+  settle on the row and surface via poll.
 - **Reference repos** (outside this dir, for copying patterns): `~/SaaS/taprunning`
   (clan flake, process-compose, `mkBunApp`, clanServices, `ObjectStorage.ts`) and
   `~/indra-nix-home` (the shared Postgres). `RESEND_API_KEY` is optional locally — when

@@ -10,7 +10,7 @@ import { Unauthorized } from './errors.js' // declared once in errors.ts
 
 export class CurrentUser extends Context.Tag('CurrentUser')<
   CurrentUser,
-  { readonly userId: string }
+  { readonly userId: string; readonly email: string }
 >() {}
 
 export class Authorization extends HttpApiMiddleware.Tag<Authorization>()(

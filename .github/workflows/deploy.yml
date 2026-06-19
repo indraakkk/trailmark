@@ -3,11 +3,15 @@ name: Deploy trailmark to tap
 # tap's whole config is taprunning's `nixosConfigurations.tap`, so this builds + activates
 # THAT closure with the trailmark input re-locked to this commit — taprunning's services
 # are preserved (validated: the merged config evaluates to a valid system derivation).
-# Explicit trigger only (never auto-deploy on every push).
+# Explicit trigger only (never auto-deploy on every push). A release is cut by merging
+# `main` into a `release-<date>` branch (e.g. release-2026-06-19); the bare `release`
+# branch and manual workflow_dispatch also trigger. main/feature pushes never deploy.
 on:
   workflow_dispatch:
   push:
-    branches: [release]
+    branches:
+      - release
+      - 'release-*'
 
 permissions:
   contents: read
@@ -54,6 +58,24 @@ jobs:
             extra-substituters = https://cache.clan.lol
             extra-trusted-public-keys = cache.clan.lol-1:3KztgSAB5R1M+Dz7vzkBGzXdodizbgLXGXKXlcQLA28=
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      # Persist the runner's Nix store across runs via the GitHub Actions cache (GHA
+      # Cache v2 protocol). MUST sit AFTER "Install Nix" (it self-registers as a
+      # substituter + post-build-hook in the nix.conf the installer just wrote) and
+      # BEFORE the build proof. It will NOT push any path fetchable from cache.clan.lol
+      # (set as an extra-substituter above), so the ~9-13GB clan/nixpkgs/tap closure is
+      # never uploaded — only trailmark-local paths land in the 10GB GHA cache: the
+      # bunDeps FOD (keyed on bun.lock.nix), the trailmark layer (offline bun install +
+      # Vite SPA build), and the few non-substitutable toplevel paths (~1-2GB total).
+      # Net: a code-only patch on a warmed ref rebuilds only the trailmark layer
+      # (~6-9m vs the 19m31s cold run). A freshly-cut release-<date> branch inherits
+      # the default-branch (main) cache, so keep main's deploy warm via periodic
+      # workflow_dispatch. Degrades gracefully (HTTP 429 -> rebuild, never a red build).
+      - name: Persist Nix store (magic-nix-cache)
+        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+        with:
+          use-gha-cache: true   # the cross-run store this Tier-0 goal needs (default-on; explicit for a SHA-pinned workflow)
+          use-flakehub: false   # $0 / no-new-infra: GHA cache only, no FlakeHub auth/uploads
 
       # DEPLOY_SSH_KEY's public half is in tap's root authorizedKeys (verified: it is the
       # `…ARmc0KNpF indraakkk` key). clan activates over SSH to root@43.133.128.143.

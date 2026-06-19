@@ -45,11 +45,13 @@ const authApp = HttpRouter.empty.pipe(
 const BadgesLive = HttpApiBuilder.group(TrailmarkApi, 'badges', (h) =>
   h
     .handle('generate', ({ payload, urlParams }) =>
-      CurrentUser.pipe(Effect.flatMap((u) => submitBadge(payload, u.userId, urlParams.force))),
+      // Pass the whole CurrentUser (userId + email): submitBadge gates the demo-failure
+      // hooks on the email and stamps ownership with the userId.
+      CurrentUser.pipe(Effect.flatMap((u) => submitBadge(payload, u, urlParams.force))),
     )
     .handle('regenerate', ({ payload, urlParams }) =>
       // path.id is provenance only; the seed comes from the payload ("keep seed").
-      CurrentUser.pipe(Effect.flatMap((u) => submitBadge(payload, u.userId, urlParams.force))),
+      CurrentUser.pipe(Effect.flatMap((u) => submitBadge(payload, u, urlParams.force))),
     )
     .handle('gallery', () =>
       CurrentUser.pipe(Effect.flatMap((u) => listReadyBadgesNewestFirst(u.userId))),

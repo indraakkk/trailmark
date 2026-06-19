@@ -30,7 +30,7 @@ Order is chosen to **get something live early** and de‑risk the new infra firs
 - ▸ `feat(web): gallery (newest-first) + tweak/keep-seed regenerate`
 
 **Hour 7–8 · Failure UX, demo hooks, polish**
-- ▸ `feat(badge): DEMO_HOOKS ?force= to trigger the 3 failure states on camera`
+- ▸ `feat(badge): account-gated ?force= to trigger the 3 failure states on camera`
 - ▸ `feat(web): inline failure cards (timeout/invalid/broken) + retry`
 - ▸ `docs: README (<15min) + architecture-for-reviewers + honest limitations`
 

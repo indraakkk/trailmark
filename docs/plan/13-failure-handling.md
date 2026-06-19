@@ -87,14 +87,15 @@ const pollinationsFlux = (prompt: string) => Effect.tryPromise({
 
 ### 7.3 Demo hooks — deterministically trigger each failure on camera
 
-Gate behind a `DEMO_HOOKS` config (default **false** in prod) and a `?force=` query param. **Failure on camera is the most important part of the recording — do not rely on luck.**
+Gate to the **demo account** (`DEMO_ACCOUNT_EMAIL`, server-authoritative — a stray `?force=` from any other user is ignored; an empty value disables it entirely). **Failure on camera is the most important part of the recording — do not rely on luck.** `invalid` is raised **synchronously** in `submitBadge` (typed 422 on the POST, no row inserted); only `timeout`/`broken` are eventual and route through the provider:
 
 ```ts
-// only read when DEMO_HOOKS is on; a stray ?force=invalid must never work in real prod
+// honored only when the signed-in user is the demo account (gated in submit.ts, case-
+// insensitive/fail-closed). `invalid` is handled synchronously in submit, so the provider
+// only ever sees timeout/broken.
 switch (force) {
   case 'timeout': return Effect.never.pipe(Effect.timeoutFail({ duration: Duration.seconds(1),
                     onTimeout: () => new GenTimeout({ detail: 'force-timeout' }) }))
-  case 'invalid': return Effect.fail(new InvalidPrompt({ reason: 'force-invalid (blocked prompt)' }))
   case 'broken':  return Effect.fail(new BrokenResponse({ detail: 'force-broken (rate-limit placeholder)' }))
 }
 ```
