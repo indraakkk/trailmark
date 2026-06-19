@@ -8,7 +8,7 @@
 // transient only) → Pollinations → overall 35s GenTimeout. See docs/plan/12 + 13.
 import { Context, Duration, Effect, Layer, Schedule } from 'effect'
 import { BrokenResponse, GenTimeout, InvalidPrompt } from '@trailmark/contract'
-import { CloudflareConfig, DemoHooks, MaxBytes } from '../infra/Config.js'
+import { CloudflareConfig, MaxBytes } from '../infra/Config.js'
 
 export const MAX_PROMPT = 2048 // flux-schnell hard limit (shared with submit's pre-flight gate)
 const MIN_BYTES = 8 * 1024 // reject empty / truncated / HTML error page
@@ -28,7 +28,7 @@ export type GenError = GenTimeout | InvalidPrompt | BrokenResponse
 export interface GenerateArgs {
   readonly prompt: string
   readonly seed: number
-  readonly force?: string | undefined // demo hook; only honored when DEMO_HOOKS=true
+  readonly force?: string | undefined // demo hook; pre-authorized in submit (demo account only)
 }
 
 export class Provider extends Context.Tag('Provider')<
@@ -43,7 +43,6 @@ export const ProviderLive = Layer.effect(
   Effect.gen(function* () {
     const cf = yield* CloudflareConfig
     const maxBytes = yield* MaxBytes
-    const demoHooks = yield* DemoHooks
     const cfToken = cf.apiToken
     const cfAccount = cf.accountId
 
@@ -153,21 +152,19 @@ export const ProviderLive = Layer.effect(
       )
 
     const generate = ({ prompt, seed, force }: GenerateArgs): Effect.Effect<Emblem, GenError> => {
-      // Demo hooks: deterministically trigger each failure on camera. Only when DEMO_HOOKS=true;
-      // a stray ?force= must never work in real prod.
-      if (demoHooks && force) {
-        if (force === 'timeout')
-          return Effect.never.pipe(
-            Effect.timeoutFail({
-              duration: Duration.seconds(1),
-              onTimeout: () => new GenTimeout({ detail: 'force-timeout' }),
-            }),
-          )
-        if (force === 'invalid')
-          return Effect.fail(new InvalidPrompt({ reason: 'force-invalid (blocked prompt)' }))
-        if (force === 'broken')
-          return Effect.fail(new BrokenResponse({ detail: 'force-broken (rate-limit placeholder)' }))
-      }
+      // Demo hooks: deterministically trigger an EVENTUAL failure on camera. `force` is
+      // pre-authorized upstream (submit.ts gates it to the demo account), so honor it on
+      // presence. `invalid` is raised SYNCHRONOUSLY in submit (typed 422), so it never
+      // reaches here — only timeout/broken are eventual.
+      if (force === 'timeout')
+        return Effect.never.pipe(
+          Effect.timeoutFail({
+            duration: Duration.seconds(1),
+            onTimeout: () => new GenTimeout({ detail: 'force-timeout' }),
+          }),
+        )
+      if (force === 'broken')
+        return Effect.fail(new BrokenResponse({ detail: 'force-broken (rate-limit placeholder)' }))
       return realGenerate(prompt, seed)
     }
 

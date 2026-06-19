@@ -25,6 +25,11 @@ export const CloudflareConfig = Config.all({
 // without a redeploy (the ~1.3MB Pollinations rate-limit decoy must stay above it).
 export const MaxBytes = Config.integer('MAX_BYTES').pipe(Config.withDefault(900 * 1024))
 
-// ── Failure-demo hooks — default false; `?force=timeout|invalid|broken` is only
-// honored when DEMO_HOOKS is true (a stray ?force= must never work in real prod).
-export const DemoHooks = Config.boolean('DEMO_HOOKS').pipe(Config.withDefault(false))
+// ── Failure-demo authorization — `?force=timeout|invalid|broken` is honored ONLY for
+// requests authenticated as this account (server-authoritative; the web control is just
+// cosmetic). The compare is case-insensitive + trimmed (submit.ts). withDefault keeps the
+// server booting locally; an EMPTY value disables the demo entirely (the prod kill switch),
+// so a stray ?force= never works for a normal user. Prod can override via DEMO_ACCOUNT_EMAIL.
+export const DemoAccountEmail = Config.string('DEMO_ACCOUNT_EMAIL').pipe(
+  Config.withDefault('indrakoslab@gmail.com'),
+)

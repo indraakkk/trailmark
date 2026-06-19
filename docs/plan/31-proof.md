@@ -28,7 +28,7 @@ Real inputs, real API calls, don't skip the wait. Hit these beats:
 5. Run: `bun run dev` (server :3000 + vite :5173) — open http://localhost:5173
 6. Sign in: enter your email → open the magic link (from your inbox, or copy the `[magic-link] … url=` line from the server log) → you're in. Your gallery is private to you.
 7. How the request flows (the §4.1 diagram)
-8. The 3 failure states + how to trigger them locally (DEMO_HOOKS=1 ?force=) — plus the auth path (expired/invalid link, unauth → 401, non‑owner → 404)
+8. The 3 failure states + how to trigger them (signed in as the demo account `DEMO_ACCOUNT_EMAIL`, then `?force=`) — plus the auth path (expired/invalid link, unauth → 401, non‑owner → 404)
 9. What I deliberately did NOT build, and known limitations
 ```
 

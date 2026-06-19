@@ -19,7 +19,11 @@ import { defaultInputs } from './presets.js'
 import { ChipForm } from './badge/ChipForm.js'
 import { Gallery } from './badge/Gallery.js'
 
-type Session = 'loading' | null | { userId: string }
+type Session = 'loading' | null | { userId: string; email: string }
+
+// Cosmetic only: hide the demo-failure control for non-demo users. The SERVER gate
+// (submit.ts, DEMO_ACCOUNT_EMAIL) is authoritative — this just avoids showing a no-op.
+const DEMO_EMAIL = 'indrakoslab@gmail.com'
 
 export function App() {
   const [session, setSession] = useState<Session>('loading')
@@ -42,8 +46,8 @@ export function App() {
     authClient
       .getSession()
       .then((r) => {
-        const data = (r as { data?: { user?: { id?: string } } } | null)?.data
-        setSession(data?.user?.id ? { userId: data.user.id } : null)
+        const data = (r as { data?: { user?: { id?: string; email?: string } } } | null)?.data
+        setSession(data?.user?.id ? { userId: data.user.id, email: data.user.email ?? '' } : null)
       })
       .catch(() => setSession(null))
   }, [])
@@ -147,15 +151,17 @@ export function App() {
       <header className="topbar">
         <span className="brand brand--sm">Trailmark</span>
         <div className="topbar__right">
-          <label className="demo">
-            Demo failure
-            <select value={force} onChange={(e) => setForce(e.target.value as '' | Force)}>
-              <option value="">none</option>
-              <option value="timeout">timeout</option>
-              <option value="invalid">invalid</option>
-              <option value="broken">broken</option>
-            </select>
-          </label>
+          {session.email.toLowerCase() === DEMO_EMAIL && (
+            <label className="demo">
+              Demo failure
+              <select value={force} onChange={(e) => setForce(e.target.value as '' | Force)}>
+                <option value="">none</option>
+                <option value="timeout">timeout</option>
+                <option value="invalid">invalid</option>
+                <option value="broken">broken</option>
+              </select>
+            </label>
+          )}
           <button
             className="btn btn--sm"
             onClick={() => {

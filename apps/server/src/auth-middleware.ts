@@ -16,7 +16,9 @@ export const AuthorizationLive = Layer.effect(
       const headers = new Headers(req.headers as Record<string, string>) // lowercase-keyed → web Headers
       const session = yield* Effect.promise(() => auth.api.getSession({ headers }))
       if (!session) return yield* new Unauthorized() // null-check is mandatory
-      return { userId: session.user.id }
+      // email travels on CurrentUser so submitBadge can gate the demo-failure hooks to
+      // the demo account (server-authoritative). Better Auth's core user always has email.
+      return { userId: session.user.id, email: session.user.email }
     })
   }),
 )

@@ -40,7 +40,7 @@ function Card({
 
   const download = () => {
     const svg = ref.current?.querySelector('svg')
-    if (svg) void exportBadgePng(svg, `${safeName(inputs.raceName)}-badge.png`)
+    if (svg) exportBadgePng(svg, `${safeName(inputs.raceName)}-badge.png`).catch(() => {})
   }
 
   if (badge.status === 'failed') {
