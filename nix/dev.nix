@@ -34,7 +34,12 @@
           # standalone `bun run --cwd apps/server dev` and `nix run .#dev` have them. RESEND_API_KEY
           # stays UNSET locally → auth.ts skips the email send and uses the logged magic link.
           export BETTER_AUTH_SECRET="trailmark-dev-secret-please-change-0123456789abcdef"
-          export BETTER_AUTH_URL="http://localhost:3000"
+          # Browser-facing origin: dev serves the SPA from :5173 (Vite) and proxies
+          # /api → :3000. BETTER_AUTH_URL must be the origin the BROWSER sees, so magic
+          # links and post-verify redirects (callbackURL=/) land on the app (:5173) and
+          # go through the proxy — NOT the bare server (:3000). Prod sets this to the
+          # same-origin public URL (https://trailmark.duckdns.org) in the nixos module.
+          export BETTER_AUTH_URL="http://localhost:5173"
 
           # Idempotent: create the db once if the shared server lacks it.
           if ! psql -lqt | cut -d \| -f 1 | grep -qw trailmark; then
