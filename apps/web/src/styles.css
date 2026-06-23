@@ -50,6 +50,15 @@ select:focus {
   border-color: #2f5d3a !important;
 }
 
+/* landing/sign-in gate: lock to exactly one viewport, never scroll. The two height
+   declarations are a deliberate fallback cascade (older engines ignore dvh and keep vh) —
+   something inline styles can't express, which is why the landing root uses this class. */
+.tm-landing {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
 /* animations referenced by the generating / toast treatments */
 @keyframes tm-shimmer {
   0% { background-position: -200% 0; }

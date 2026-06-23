@@ -294,7 +294,7 @@ export function Landing(props: LandingProps) {
         // a cinematic forest wash, built ONLY from design tokens: a deep-forest glow at
         // top-center fading into the app's dark-surface token (T.dark — the same backdrop
         // used by the Studio preview + Badge detail).
-        background: `radial-gradient(125% 95% at 50% 15%, ${T.paper} 0%, ${T.fores} 60%, ${T.forest} 100%)`,
+        background: `radial-gradient(125% 95% at 50% 15%, ${T.paper} 0%, ${T.forest} 60%, ${T.forest} 100%)`,
         color: T.darkInk,
         display: "grid",
         gridTemplateColumns: mobile ? "1fr" : "1.05fr 0.95fr",
