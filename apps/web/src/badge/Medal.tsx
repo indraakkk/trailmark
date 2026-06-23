@@ -61,9 +61,9 @@ export function Medal({
   let raceFs = 15.5, raceLs = 1.6
   if (race.length > 22) { raceFs = 13; raceLs = 1 }
   if (race.length > 30) { raceFs = 11; raceLs = 0.4 }
-  let timeFs = 34
-  if (time.length > 7) timeFs = 28
-  if (time.length > 9) timeFs = 23
+  let timeFs = 20
+  if (time.length > 7) timeFs = 17
+  if (time.length > 9) timeFs = 14
 
   const clip = `clip-${uid}`
   const topArc = `at-${uid}`
@@ -123,9 +123,11 @@ export function Medal({
           )}
         </g>
 
-        {/* rings */}
-        <circle cx={120} cy={120} r={116} fill="none" stroke={ink} strokeWidth={2.5} opacity={0.9} />
-        <circle cx={120} cy={120} r={108} fill="none" stroke={accent} strokeWidth={1.4} opacity={0.85} />
+        {/* rings — ONE crisp edge ring + a single thin accent hairline. Kept deliberately
+            sparse so the medal's own ring doesn't compete with whatever ring the emblem
+            art happens to carry (de-cluttered per the revamp). */}
+        <circle cx={120} cy={120} r={116} fill="none" stroke={ink} strokeWidth={2.2} opacity={0.92} />
+        <circle cx={120} cy={120} r={110} fill="none" stroke={accent} strokeWidth={1} opacity={0.7} />
 
         {/* race name — top arc (LAYER 2) */}
         <text
@@ -155,16 +157,16 @@ export function Medal({
           </textPath>
         </text>
 
-        {/* stats plate — the quiet zone keeps time/date legible over any emblem. Drawn
-            only when there's something to show, so a time/date-less medal stays clean. */}
+        {/* stats plate — a SLIM, soft, low quiet-zone that keeps time/date legible over any
+            emblem while sitting over the lower foreground only, so the full emblem (peak +
+            sun) stays uncropped above it. Drawn only when there's something to show. */}
         {(hasTime || !!date) && (
-        <g transform="translate(120 152)">
-          <rect x={-58} y={-25} width={116} height={50} rx={7} fill={scrim} stroke={scrimBorder} strokeWidth={1} />
-          <rect x={-40} y={hasTime ? -23 : -2} width={80} height={1.4} fill={accent} opacity={0.9} />
+        <g transform="translate(120 162)">
+          <rect x={-58} y={-18} width={116} height={36} rx={10} fill={scrim} stroke={scrimBorder} strokeWidth={1} />
           {hasTime && (
             <text
               x={0}
-              y={4}
+              y={date ? -3 : 1}
               fontFamily={FONT_DISP}
               fontWeight={700}
               fontSize={timeFs}
@@ -179,13 +181,14 @@ export function Medal({
           {date && (
             <text
               x={0}
-              y={hasTime ? 19 : 12}
+              y={hasTime ? 11 : 1}
               fontFamily={FONT_UI}
               fontWeight={600}
-              fontSize={hasTime ? 9 : 11}
-              letterSpacing={2}
+              fontSize={hasTime ? 8 : 10.5}
+              letterSpacing={1.6}
               fill={ink}
               textAnchor="middle"
+              dominantBaseline="middle"
               opacity={0.82}
             >
               {date.toUpperCase()}
@@ -198,8 +201,9 @@ export function Medal({
   )
 }
 
-/** Rasterize a Medal's SVG (face + emblem + typography) → PNG download, fully client-side. */
-export async function exportBadgePng(svgEl: SVGSVGElement, fileName: string) {
+/** Rasterize a Medal's SVG (face + emblem + typography) → a PNG Blob, fully client-side.
+ *  Shared by both the download and copy-to-clipboard paths. */
+async function renderBadgePngBlob(svgEl: SVGSVGElement): Promise<Blob> {
   await document.fonts.ready // load the web fonts BEFORE raster, or text falls back
   // Clone so we never disturb the on-screen SVG while we rewrite the emblem reference.
   const clone = svgEl.cloneNode(true) as SVGSVGElement
@@ -208,7 +212,7 @@ export async function exportBadgePng(svgEl: SVGSVGElement, fileName: string) {
 
   // Inline the emblem as a data: URL (see header note). Same-origin fetch carries the
   // httpOnly session cookie and keeps the canvas untainted. On failure, drop the <image>
-  // and export the type-only medal rather than aborting the whole download.
+  // and render the type-only medal rather than aborting the whole operation.
   const emblem = clone.querySelector('image')
   if (emblem) {
     try {
@@ -242,10 +246,28 @@ export async function exportBadgePng(svgEl: SVGSVGElement, fileName: string) {
   ctx.drawImage(img, 0, 0, EXPORT_SIZE, EXPORT_SIZE)
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob((b) => r(b), 'image/png'))
   if (!blob) throw new Error('toBlob failed')
+  return blob
+}
+
+/** Rasterize a Medal's SVG → PNG download. */
+export async function exportBadgePng(svgEl: SVGSVGElement, fileName: string) {
+  const blob = await renderBadgePngBlob(svgEl)
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(blob),
     download: fileName,
   })
   a.click()
   URL.revokeObjectURL(a.href)
+}
+
+/** Copy a Medal's rendered PNG to the clipboard. Throws `clipboard-unsupported` when the
+ *  async clipboard / ClipboardItem API is missing so callers can fall back to Download.
+ *  We hand ClipboardItem the *pending* Blob promise rather than awaiting it first: Safari
+ *  only honours a write that is registered synchronously within the click's user-activation,
+ *  and accepts a Promise<Blob> value to satisfy that while the raster runs. */
+export async function copyBadgePng(svgEl: SVGSVGElement): Promise<void> {
+  if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
+    throw new Error('clipboard-unsupported')
+  }
+  await navigator.clipboard.write([new ClipboardItem({ 'image/png': renderBadgePngBlob(svgEl) })])
 }

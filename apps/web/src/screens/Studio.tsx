@@ -127,8 +127,8 @@ export function Studio({ initialForm, mode, credits, busy, mobile, onBack, onGen
               position: 'sticky',
               top: 62,
               zIndex: 30,
-              margin: '-20px -16px 0',
-              padding: '22px 16px 18px',
+              margin: '0 -16px',
+              padding: '20px 16px 18px',
               background: 'linear-gradient(180deg,#1c2019,#23281f)',
               display: 'flex',
               flexDirection: 'column',
@@ -491,7 +491,7 @@ export function Studio({ initialForm, mode, credits, busy, mobile, onBack, onGen
 
   // ── HEADER ──────────────────────────────────────────────────────────────────
   const header = (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 24 }}>
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: mobile ? 16 : 24 }}>
       <button
         type="button"
         onClick={onBack}
