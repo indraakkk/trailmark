@@ -6,8 +6,8 @@
 // imports only @effect/platform + effect + sibling contract modules.
 import { HttpApi, HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from '@effect/platform'
 import { Schema } from 'effect'
-import { InvalidPrompt, NotFound } from './errors.js'
-import { BadgeView, GenerateBadgeInput } from './schemas/Badge.js'
+import { InvalidPrompt, NotFound, OutOfCredits } from './errors.js'
+import { BadgeView, CreditsView, GenerateBadgeInput } from './schemas/Badge.js'
 import { Authorization } from './auth.js'
 
 // Demo hook (server-gated to the demo account via DEMO_ACCOUNT_EMAIL): ?force=
@@ -25,32 +25,66 @@ const ImageBytes = Schema.Uint8ArrayFromSelf.pipe(
   HttpApiSchema.withEncoding({ kind: 'Uint8Array', contentType: 'image/png' }),
 )
 
+const BadgeId = Schema.Struct({ id: Schema.UUID })
+
 class BadgesApi extends HttpApiGroup.make('badges')
   .add(
     HttpApiEndpoint.post('generate', '/badges')
       .setPayload(GenerateBadgeInput)
       .setUrlParams(ForceParam)
       .addSuccess(BadgeView)
-      .addError(InvalidPrompt),
+      .addError(InvalidPrompt)
+      .addError(OutOfCredits),
   )
+  // Gallery returns ALL of the user's badges (generating/ready/failed), newest first —
+  // the Collection groups them by race and surfaces failures in a "needs attention" area.
   .add(HttpApiEndpoint.get('gallery', '/badges').addSuccess(Schema.Array(BadgeView)))
   .add(
-    HttpApiEndpoint.get('one', '/badges/:id')
-      .setPath(Schema.Struct({ id: Schema.UUID }))
-      .addSuccess(BadgeView)
-      .addError(NotFound),
+    HttpApiEndpoint.get('one', '/badges/:id').setPath(BadgeId).addSuccess(BadgeView).addError(NotFound),
   )
+  // Tweak / "new look": ALWAYS a NEW owner-stamped row; the seed comes from the payload.
+  // The path id identifies the badge being tweaked (kept for symmetry / forward-compat —
+  // no lineage column is persisted; ADR-0016 tight scope). Costs a credit.
   .add(
     HttpApiEndpoint.post('regenerate', '/badges/:id/regenerate')
-      .setPath(Schema.Struct({ id: Schema.UUID }))
+      .setPath(BadgeId)
       .setPayload(GenerateBadgeInput)
       .setUrlParams(ForceParam)
       .addSuccess(BadgeView)
-      .addError(InvalidPrompt),
+      .addError(InvalidPrompt)
+      .addError(OutOfCredits)
+      .addError(NotFound),
   )
+  // Retry a FAILED badge IN PLACE — re-runs generation onto the SAME row (does not spawn a
+  // new tile). The row flips failed→generating and re-forks with its stored prompt + seed.
+  .add(
+    HttpApiEndpoint.post('retry', '/badges/:id/retry')
+      .setPath(BadgeId)
+      .setUrlParams(ForceParam)
+      .addSuccess(BadgeView)
+      .addError(NotFound)
+      .addError(OutOfCredits),
+  )
+  // Promote a badge to its race's keeper (hero). Flips siblings' keeper off. Returns the
+  // refreshed full collection so the client can re-render in one shot.
+  .add(
+    HttpApiEndpoint.post('setKeeper', '/badges/:id/keeper')
+      .setPath(BadgeId)
+      .addSuccess(Schema.Array(BadgeView))
+      .addError(NotFound),
+  )
+  // Delete a badge. Returns the refreshed collection. (Garage object orphan is GC-able —
+  // no cross-store compensating delete; ADR-0016 accepted limitation.)
+  .add(
+    HttpApiEndpoint.del('remove', '/badges/:id')
+      .setPath(BadgeId)
+      .addSuccess(Schema.Array(BadgeView))
+      .addError(NotFound),
+  )
+  .add(HttpApiEndpoint.get('credits', '/credits').addSuccess(CreditsView))
   .add(
     HttpApiEndpoint.get('image', '/badges/:id/image')
-      .setPath(Schema.Struct({ id: Schema.UUID }))
+      .setPath(BadgeId)
       .addSuccess(ImageBytes)
       .addError(NotFound),
   )

@@ -1,99 +1,95 @@
-:root {
-  --bg: #f4f1ea;
-  --panel: #ffffff;
-  --ink: #1c1c1c;
-  --muted: #6b6256;
-  --line: #e0d9cc;
-  --accent: #3f6b46;
-  --accent-ink: #fff;
-  --warn: #b8502f;
-  font-family: 'Oswald', system-ui, sans-serif;
+/* apps/web/src/styles.css — globals only. The TrailMark revamp styles screens with
+   inline styles (faithful to the design mockup + design tokens in theme.ts); this file
+   owns resets, fonts, keyframes, scrollbar, and accessible focus rings. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); }
-button { font-family: inherit; cursor: pointer; }
-code { background: #eee; padding: 0 4px; border-radius: 3px; font-size: 0.85em; }
-
-.center { min-height: 100vh; display: grid; place-content: center; gap: 12px; text-align: center; padding: 24px; }
-.brand { font-weight: 800; letter-spacing: 4px; text-transform: uppercase; margin: 0; }
-.brand--sm { font-size: 22px; letter-spacing: 3px; }
-.tagline { color: var(--muted); margin: 0; }
-
-.signin__form { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
-
-.input {
-  font-family: inherit; font-size: 16px; padding: 10px 12px;
-  border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink);
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #ece6da;
+  color: #26261f;
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-.input:focus { outline: 2px solid var(--accent); }
 
-.btn {
-  font-weight: 600; font-size: 15px; padding: 10px 16px; border-radius: 8px;
-  border: 1px solid var(--line); background: #fff; color: var(--ink);
+button {
+  font-family: inherit;
+  cursor: pointer;
 }
-.btn--primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn--sm { padding: 6px 10px; font-size: 13px; }
-.btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.linkbtn { background: none; border: none; color: var(--accent); text-decoration: underline; padding: 0; }
-
-/* layout */
-.topbar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 24px; background: var(--panel); border-bottom: 1px solid var(--line);
-  position: sticky; top: 0; z-index: 10;
+button:disabled {
+  cursor: not-allowed;
 }
-.topbar__right { display: flex; align-items: center; gap: 14px; }
-.demo { font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
-.demo select { font-family: inherit; padding: 4px; border-radius: 6px; border: 1px solid var(--line); }
-.app__main { max-width: 1100px; margin: 0 auto; padding: 24px; }
-.section { letter-spacing: 2px; text-transform: uppercase; font-size: 16px; color: var(--muted); margin: 32px 0 12px; }
-
-.notice { background: #eef3ee; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; color: var(--muted); }
-.notice--warn { background: #fbeee9; color: var(--warn); border-color: #f0d6cc; }
-
-/* form + preview */
-.form { display: grid; grid-template-columns: 1fr 360px; gap: 28px; align-items: start; }
-.form__controls { display: grid; gap: 16px; }
-.field { display: grid; gap: 6px; }
-.field--row { grid-template-columns: 1fr 1fr; gap: 16px; }
-.field__label { font-size: 13px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
-
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line);
-  background: #fff; color: var(--ink); font-size: 14px;
+input,
+select {
+  font-family: inherit;
 }
-.chip--on { background: var(--ink); color: #fff; border-color: var(--ink); }
-.chip .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-.chip .glyph { font-size: 15px; }
-
-.actions { display: flex; gap: 10px; margin-top: 8px; }
-
-.form__preview { position: sticky; top: 80px; display: grid; gap: 10px; }
-.preview-card, .card__art {
-  aspect-ratio: 1 / 1; width: 100%; background: #ece7df; border-radius: 14px; overflow: hidden;
-  border: 1px solid var(--line);
+code {
+  background: #e7e0cf;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 0.85em;
 }
-.preview-hint { font-size: 13px; color: var(--muted); margin: 0; }
 
-/* gallery */
-.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
-.gallery-empty { color: var(--muted); }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-.card__art--muted { opacity: 0.92; }
-.card__bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px; flex-wrap: wrap; }
-.card__title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card--failed .fail { color: var(--warn); flex: 1; font-size: 14px; }
-
-.spinner {
-  width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent);
-  border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; margin-right: 6px;
+/* visible focus ring for keyboard users (mouse clicks don't trigger :focus-visible) */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #2f5d3a;
+  outline-offset: 2px;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+input:focus,
+select:focus {
+  border-color: #2f5d3a !important;
+}
 
-@media (max-width: 760px) {
-  .form { grid-template-columns: 1fr; }
-  .form__preview { position: static; }
+/* landing/sign-in gate: lock to exactly one viewport, never scroll. The two height
+   declarations are a deliberate fallback cascade (older engines ignore dvh and keep vh) —
+   something inline styles can't express, which is why the landing root uses this class. */
+.tm-landing {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* animations referenced by the generating / toast treatments */
+@keyframes tm-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes tm-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes tm-fadeup {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* utility classes for the generating skeleton */
+.tm-shimmer {
+  background: linear-gradient(100deg, #e7e0d0 30%, #f2ece0 50%, #e7e0d0 70%);
+  background-size: 200% 100%;
+  animation: tm-shimmer 1.5s linear infinite;
+}
+.tm-spin {
+  animation: tm-spin 0.8s linear infinite;
+}
+
+/* themed scrollbar (matches the paper palette) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #c7bda9;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }

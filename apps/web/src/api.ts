@@ -26,37 +26,60 @@ const run = <A, E>(f: (c: Effect.Effect.Success<typeof client>) => Effect.Effect
 export type Force = 'timeout' | 'invalid' | 'broken'
 export type GenResult = { ok: true; badge: BadgeView } | { ok: false; reason: string }
 
-// Map ANY generate/regenerate failure to a typed result so these never reject:
-// InvalidPrompt (synchronous 422), Unauthorized (expired session), or transport error.
+// Map ANY generate/regenerate/retry failure to a typed result so these never reject:
+// InvalidPrompt (synchronous 422), OutOfCredits (402), Unauthorized, NotFound, or transport.
 const genErr = (e: { _tag?: string; reason?: string }): GenResult => {
   if (e?._tag === 'InvalidPrompt') return { ok: false, reason: e.reason ?? 'Prompt rejected' }
-  if (e?._tag === 'Unauthorized') return { ok: false, reason: 'Your session expired — please sign in again.' }
+  if (e?._tag === 'OutOfCredits')
+    return { ok: false, reason: "You're out of credits — that's all the generations on this account." }
+  if (e?._tag === 'Unauthorized')
+    return { ok: false, reason: 'Your session expired — please sign in again.' }
+  if (e?._tag === 'NotFound') return { ok: false, reason: 'That badge no longer exists.' }
   return { ok: false, reason: 'Could not reach the server — please retry.' }
 }
 
-/** Generate: failures (InvalidPrompt / Unauthorized / network) come back as a typed result. */
+const okBadge = (badge: BadgeView) => ({ ok: true as const, badge })
+
+/** Generate: a NEW badge. Failures come back as a typed result (never rejects). */
 export const generate = (payload: GenerateBadgeInput, force?: Force): Promise<GenResult> =>
   run((c) =>
-    c.badges.generate({ payload, urlParams: force ? { force } : {} }).pipe(
-      Effect.map((badge) => ({ ok: true as const, badge })),
-      Effect.catchAll((e) => Effect.succeed(genErr(e))),
-    ),
+    c.badges
+      .generate({ payload, urlParams: force ? { force } : {} })
+      .pipe(Effect.map(okBadge), Effect.catchAll((e) => Effect.succeed(genErr(e)))),
   )
 
-/** Regenerate: a NEW row owned by the current user; path id is provenance, seed from payload. */
+/** Regenerate (Tweak / "new look"): a NEW row owned by the user; path id is provenance. */
 export const regenerate = (id: string, payload: GenerateBadgeInput, force?: Force): Promise<GenResult> =>
   run((c) =>
-    c.badges.regenerate({ path: { id }, payload, urlParams: force ? { force } : {} }).pipe(
-      Effect.map((badge) => ({ ok: true as const, badge })),
-      Effect.catchAll((e) => Effect.succeed(genErr(e))),
-    ),
+    c.badges
+      .regenerate({ path: { id }, payload, urlParams: force ? { force } : {} })
+      .pipe(Effect.map(okBadge), Effect.catchAll((e) => Effect.succeed(genErr(e)))),
   )
 
-/** Gallery: the signed-in user's ready badges, newest first. Throws on Unauthorized. */
+/** Retry a FAILED badge IN PLACE — re-runs onto the SAME row (no new tile). */
+export const retry = (id: string, force?: Force): Promise<GenResult> =>
+  run((c) =>
+    c.badges
+      .retry({ path: { id }, urlParams: force ? { force } : {} })
+      .pipe(Effect.map(okBadge), Effect.catchAll((e) => Effect.succeed(genErr(e)))),
+  )
+
+/** Gallery: ALL of the signed-in user's badges (any status), newest first. */
 export const gallery = (): Promise<ReadonlyArray<BadgeView>> => run((c) => c.badges.gallery())
 
 /** Poll one badge (any status). Throws NotFound/Unauthorized. */
 export const one = (id: string): Promise<BadgeView> => run((c) => c.badges.one({ path: { id } }))
+
+/** Promote a badge to its race's keeper. Returns the refreshed collection. */
+export const setKeeper = (id: string): Promise<ReadonlyArray<BadgeView>> =>
+  run((c) => c.badges.setKeeper({ path: { id } }))
+
+/** Delete a badge. Returns the refreshed collection. */
+export const remove = (id: string): Promise<ReadonlyArray<BadgeView>> =>
+  run((c) => c.badges.remove({ path: { id } }))
+
+/** Remaining generation credits for the current user. */
+export const credits = (): Promise<number> => run((c) => c.badges.credits().pipe(Effect.map((r) => r.balance)))
 
 /** Same-origin emblem proxy URL (never the provider URL — canvas-taint + privacy). */
 export const imageUrl = (id: string) => `/api/badges/${id}/image`
