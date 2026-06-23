@@ -18,15 +18,45 @@ ADR-0001 … ADR-0017) and [`docs/plan/`](docs/plan/) (sequenced build chunks);
 
 ## Quick start (< 15 min)
 
-Prereqs: [Nix](https://nixos.org) with flakes, and a local Postgres reachable over a unix
-socket (the dev DB; see [ADR-0011](docs/adr/0011-local-postgres-indra-nix-home.md)).
+Two ways to run it locally — pick one. Both end at the same place.
+
+### Option A — Docker (no Nix) · recommended if you don't already run Nix
+
+Prereqs: Docker Engine **+ Compose v2** (Docker Desktop on macOS/Windows). Nothing else — no
+Bun, no Postgres, no Nix on the host.
+
+```bash
+docker compose up --build   # builds images + boots db + garage + migrate + server + web
+```
+
+This is the Docker parity of `nix run .#dev`: a dedicated Postgres container replaces the
+shared host DB, Garage runs as its own container, and the bun server + Vite web come up after
+migrations. See [`docs/DEMO-GUIDE.md` §6](docs/DEMO-GUIDE.md#6-running-it--docker-plan--nix)
+for the full mapping, the optional Cloudflare/Resend knobs (`.env.docker`), and troubleshooting.
+
+### Option B — Nix (the canonical dev path)
+
+Install Nix with the **[Determinate Systems](https://determinate.systems/nix) installer** — it
+enables flakes + the unified `nix` CLI out of the box (no manual config), with a clean
+uninstaller:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+# then open a NEW shell so the Nix profile is on PATH
+```
+
+Also needs a local Postgres reachable over a unix socket (the dev DB; see
+[ADR-0011](docs/adr/0011-local-postgres-indra-nix-home.md)) — the dependency Option A removes
+by shipping its own `db` container.
 
 ```bash
 nix develop            # devShell: bun, psql, process-compose, bun2nix; creates the `trailmark` db
 nix run .#dev          # garage + garage-init + migrate + server + web, one command
 ```
 
-Then open <http://localhost:5173>:
+---
+
+Either way, then open <http://localhost:5173>:
 
 1. Enter any email → **Send sign-in link**. Locally, the magic link is **printed to the
    server log** as `[magic-link] email=… url=…` (no email provider needed) — click it.

@@ -107,9 +107,16 @@ const HttpLive = HttpApiBuilder.serve(HttpMiddleware.logger).pipe(
   Layer.provide(ApiLive),
   Layer.provide(Layer.mergeAll(DbLive, GarageLive, ProviderLive)),
   // PORT env-driven: 3000 dev default; prod (systemd on `tap`) injects PORT=3001 behind Caddy.
+  // HOST env-driven too: defaults to 127.0.0.1 (Nix dev + prod, where Caddy/Vite reach the
+  // server over loopback on the same host); Docker sets HOST=0.0.0.0 so the web/curl in OTHER
+  // containers can reach it across the compose network. Default preserves loopback-only binding.
   // idleTimeout headroom is harmless even though we return fast; keep it above worst case.
   Layer.provide(
-    BunHttpServer.layer({ port: Number(Bun.env['PORT'] ?? 3000), hostname: '127.0.0.1', idleTimeout: 60 }),
+    BunHttpServer.layer({
+      port: Number(Bun.env['PORT'] ?? 3000),
+      hostname: Bun.env['HOST'] ?? '127.0.0.1',
+      idleTimeout: 60,
+    }),
   ),
 )
 

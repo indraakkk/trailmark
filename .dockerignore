@@ -1,0 +1,24 @@
+# Keep the build context lean AND keep host-built artifacts out of the linux image.
+# node_modules is the critical one: the host installs darwin/arm64 binaries; the
+# image must build its own linux ones via `bun install`. .data is the local Garage
+# store (the Docker stack uses its own volume). dist/ are stale web bundles.
+node_modules/
+**/node_modules/
+.data/
+.direnv/
+.git/
+dist/
+**/dist/
+*.tsbuildinfo
+result
+result-*
+
+# Never bake real secrets into an image.
+.env
+.env.local
+.env.*.local
+
+# macOS / editor noise
+.DS_Store
+**/.DS_Store
+*.swp

@@ -1,0 +1,13 @@
+# docker/Dockerfile.garage-init — a tiny image that pairs the Garage CLI with a
+# shell. The official Garage image (dxflrs/garage) is a minimal static binary with
+# NO shell, so it can run the server but can't run our bash bootstrap. We copy the
+# (static, musl) garage binary onto Alpine and add bash + the init script. The
+# garage SERVER service still uses dxflrs/garage directly; only INIT needs this.
+FROM dxflrs/garage:v1.0.1 AS garage
+
+FROM alpine:3.20
+RUN apk add --no-cache bash
+COPY --from=garage /garage /usr/local/bin/garage
+COPY docker/garage-init.sh /usr/local/bin/garage-init.sh
+RUN chmod +x /usr/local/bin/garage-init.sh
+ENTRYPOINT ["/usr/local/bin/garage-init.sh"]

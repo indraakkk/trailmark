@@ -1,0 +1,29 @@
+# docker/garage.toml — Garage (S3) config for the Docker stack. Mirrors the Nix
+# dev config (nix/processes.nix) with TWO container-specific changes:
+#   1. bind addresses are 0.0.0.0 (not 127.0.0.1) so the `server` and `garage-init`
+#      containers can reach Garage across the compose network. Nix binds loopback
+#      because everything shares one host; containers don't.
+#   2. rpc_public_addr advertises the compose hostname `garage:3901`, so the
+#      `garage-init` CLI (a SEPARATE container) knows where to dial over RPC.
+# Ports stay 3900 (s3) / 3901 (rpc) / 3903 (admin). Single instance ⇒ replication_factor = 1.
+# db_engine = sqlite matches dev (ADR-0012). The data lives on a named volume.
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+
+replication_factor = 1
+
+# Dev-only fixed creds — identical to nix/processes.nix so the bucket/key match.
+# Loopback-equivalent inside an isolated compose network; never expose these ports.
+rpc_secret = "0000000000000000000000000000000000000000000000000000000000000000"
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_public_addr = "garage:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"
+admin_token = "trailmark-dev-admin-token"

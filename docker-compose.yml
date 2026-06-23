@@ -1,0 +1,159 @@
+# docker-compose.yml — the Docker parity of `nix run .#dev`.
+#
+# Same five moving parts, same order: Postgres + Garage(+init) come up, migrations
+# run as a oneshot, then the bun server, then the Vite web dev server. The Nix stack
+# leans on a shared host Postgres + loopback binds; Docker gives each piece its own
+# container on an isolated network, so the only real differences are: a dedicated
+# `db` container (vs the shared indra-nix-home server) and 0.0.0.0 binds (vs 127.0.0.1).
+#
+#   Browser → http://localhost:5173 (web / Vite) → proxies /api → server:3000
+#   server  → garage:3900 (emblem bytes, S3)  +  db:5432 (rows, Postgres)
+#
+# Run it:
+#   docker compose up --build                         # Pollinations + logged magic link
+#   docker compose --env-file .env.docker up --build  # to enable Cloudflare / Resend
+#   open http://localhost:5173   ·   docker compose logs -f server   (the [magic-link] line)
+
+# ── Shared env: Postgres connection. The pg driver (both @effect/sql-pg AND Better
+# Auth's `new Pool()`) reads PG* from the environment. `trust` auth on the db means
+# no password is needed — the Docker equivalent of Nix's password-less peer auth.
+x-postgres-env: &postgres-env
+  PGHOST: db
+  PGPORT: "5432"
+  PGUSER: trailmark
+  PGDATABASE: trailmark
+
+services:
+  # ── Postgres: gallery rows, keeper flag, credit balances ──────────────────────
+  db:
+    image: postgres:16 # matches the Postgres 16 pin (ADR-0011)
+    environment:
+      POSTGRES_USER: trailmark
+      POSTGRES_DB: trailmark
+      # Dev-only: any connection is trusted (no password), like Nix peer auth. The
+      # port is NOT published to the host, so this never leaves the compose network.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trailmark -d trailmark"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # ── Garage: the S3 object store for emblem BYTES (emblems/<id>.jpg) ────────────
+  garage:
+    image: dxflrs/garage:v1.0.1
+    # The image has no entrypoint (Cmd = ["/garage","server"]) and no shell, so the
+    # binary path is explicit. -c points at our mounted config.
+    command: ["/garage", "-c", "/etc/garage.toml", "server"]
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml:ro
+      - garage_data:/var/lib/garage
+    # `garage status` exits 0 once RPC is up — the right readiness signal for a fresh
+    # single instance (its /health 503s until a layout is applied; ADR-0013). The
+    # garage image has no shell/curl, so we healthcheck with the garage binary itself.
+    healthcheck:
+      test: ["CMD", "/garage", "-c", "/etc/garage.toml", "status"]
+      interval: 3s
+      timeout: 4s
+      retries: 20
+
+  # ── Garage bootstrap (oneshot): layout → bucket → fixed key → grant ───────────
+  garage-init:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.garage-init
+    volumes:
+      - ./docker/garage.toml:/etc/garage.toml:ro
+      # Share the SAME metadata volume as the garage server: the garage CLI reads the
+      # node's identity key from metadata_dir to authenticate its RPC connection. In Nix
+      # this is implicit (init runs on the same host as the server); across containers
+      # the CLI can't read the node key without this mount, and every bootstrap command
+      # fails. The server creates the key on first boot — by the time init runs (after
+      # garage is healthy) it exists. The CLI only READS the key file (writes go over RPC).
+      - garage_data:/var/lib/garage
+    depends_on:
+      garage:
+        condition: service_healthy
+    restart: "no"
+
+  # ── Migrations (oneshot): 0001_auth → 0002_init → 0003_revamp, in order ───────
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bun", "run", "--cwd", "apps/server", "migrate"]
+    environment:
+      <<: *postgres-env
+      TZ: UTC
+    depends_on:
+      db:
+        condition: service_healthy
+      garage-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # ── The bun + Effect server (HttpApi + Better Auth) ───────────────────────────
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bun", "run", "--cwd", "apps/server", "start"]
+    environment:
+      <<: *postgres-env
+      TZ: UTC
+      # HOST=0.0.0.0 so the web container (and host curl) can reach the server across
+      # the compose network — the server defaults to 127.0.0.1 (loopback) otherwise.
+      HOST: 0.0.0.0
+      PORT: "3000"
+      # Emblem bytes → the garage container's S3 API. Fixed dev creds (docker/garage.toml).
+      S3_ENDPOINT: http://garage:3900
+      S3_REGION: garage
+      S3_BUCKET: trailmark
+      S3_ACCESS_KEY_ID: GK31c2f218a2e44341e0ffc5dd
+      S3_SECRET_ACCESS_KEY: b9c2e7a14d6f08e35a9b1c4d7e2f60a8c3b5d9e1f4a7c0b2d6e8f1a3c5b7d9e0
+      # Auth: the SECRET can be anything locally; the URL must be the origin the BROWSER
+      # sees (Vite on :5173), so magic links + post-verify redirects land on the app.
+      BETTER_AUTH_SECRET: trailmark-dev-secret-please-change-0123456789abcdef
+      BETTER_AUTH_URL: http://localhost:5173
+      BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:5173
+      # Optional providers — empty ⇒ Pollinations + logged magic link (the default).
+      CF_API_TOKEN: ${CF_API_TOKEN:-}
+      CF_ACCOUNT_ID: ${CF_ACCOUNT_ID:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      DEMO_ACCOUNT_EMAIL: ${DEMO_ACCOUNT_EMAIL:-indrakoslab@gmail.com}
+    ports:
+      - "3000:3000" # exposed for curl/healthz; the browser still goes via :5173
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      garage:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  # ── The Vite dev server (React SPA), proxying /api → server ───────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bun", "run", "--cwd", "apps/web", "dev"]
+    environment:
+      # Bind 0.0.0.0 so the host browser reaches Vite via the mapped port; proxy /api
+      # to the server container (Nix uses 127.0.0.1 for both — see vite.config.ts).
+      VITE_HOST: 0.0.0.0
+      VITE_PROXY_TARGET: http://server:3000
+    ports:
+      - "5173:5173"
+    depends_on:
+      server:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  garage_data:
