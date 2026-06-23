@@ -11,6 +11,8 @@ apps/*/dist/
 .env
 .env.local
 .env.*.local
+.env.docker
+# (.env.docker.example IS committed — it's the template, no real keys)
 
 # Local data — Garage object-store data dir (metadata + objects live here)
 .data/
