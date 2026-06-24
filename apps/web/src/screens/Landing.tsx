@@ -185,35 +185,42 @@ export function Landing(props: LandingProps) {
             </strong>
             . Open it on this device to step into your trophy case.
           </p>
-          <p
-            style={{
-              margin: "12px 0 0",
-              padding: "11px 13px",
-              background: T.rustTint,
-              border: `1px solid ${T.rust}33`,
-              borderRadius: RADIUS.input,
-              fontFamily: FONT_UI,
-              fontSize: 12.5,
-              lineHeight: 1.5,
-              color: T.mutedInk,
-            }}
-          >
-            Running locally? It&rsquo;s printed in the server log as{" "}
-            <code
+          {/* Dev-only hint: locally we skip the Resend send and print the link to the
+              server log, so we point the developer at it. In a deployed build the user
+              gets a real email and this is misleading — gate it on import.meta.env.DEV,
+              which Vite statically replaces with `false` in `vite build`, so the whole
+              block is dead-code-eliminated from the production bundle (never rendered). */}
+          {import.meta.env.DEV && (
+            <p
               style={{
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                fontSize: 11.5,
-                background: T.field,
-                border: `1px solid ${T.hairline}`,
-                borderRadius: RADIUS.chip,
-                padding: "1px 6px",
-                color: T.ink,
+                margin: "12px 0 0",
+                padding: "11px 13px",
+                background: T.rustTint,
+                border: `1px solid ${T.rust}33`,
+                borderRadius: RADIUS.input,
+                fontFamily: FONT_UI,
+                fontSize: 12.5,
+                lineHeight: 1.5,
+                color: T.mutedInk,
               }}
             >
-              [magic-link]
-            </code>{" "}
-            …
-          </p>
+              Running locally? It&rsquo;s printed in the server log as{" "}
+              <code
+                style={{
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                  fontSize: 11.5,
+                  background: T.field,
+                  border: `1px solid ${T.hairline}`,
+                  borderRadius: RADIUS.chip,
+                  padding: "1px 6px",
+                  color: T.ink,
+                }}
+              >
+                [magic-link]
+              </code>{" "}
+              …
+            </p>
+          )}
           <button
             type="button"
             onClick={() => onEmailChange("")}
