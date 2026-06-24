@@ -310,6 +310,18 @@
               handle {
                 root * ${webRoot}
                 encode gzip zstd
+                # Content-hashed bundles under /assets/* are immutable — cache them
+                # hard so repeat visits stay instant.
+                @assets path /assets/*
+                header @assets Cache-Control "public, max-age=31536000, immutable"
+                # Everything else resolves to the entry HTML (index.html, including the
+                # SPA fallback). It must NOT be cached: Nix freezes the store mtime to
+                # 1970 and Caddy emits no ETag, so a cacheable index.html lets a
+                # returning browser pin a STALE entry HTML — and thus an OLD hashed JS
+                # bundle — for years (heuristic caching off the 1970 Last-Modified).
+                # no-store keeps the ~1KB HTML always-fresh so every deploy takes effect.
+                @html not path /assets/*
+                header @html Cache-Control "no-store"
                 try_files {path} /index.html
                 file_server
               }
