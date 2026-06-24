@@ -111,10 +111,13 @@ export const auth = betterAuth({
         // 1) ALWAYS log a structured line — debugging + reliable local/demo login.
         console.log(`[magic-link] email=${email} url=${url}`)
 
-        // 2) Conditionally send via Resend (sandbox only delivers to the account owner).
+        // 2) Conditionally send via Resend. `from` uses our VERIFIED sending domain
+        // (mail.trailmark.indr.web.id) so delivery is not limited to the Resend account
+        // owner — any recipient gets the link. (The sandbox `onboarding@resend.dev`
+        // only mailed the account owner; switching domains lifts that.)
         if (!resend) return
         const { error } = await resend.emails.send({
-          from: 'Trailmark <onboarding@resend.dev>',
+          from: 'Trailmark <noreply@mail.trailmark.indr.web.id>',
           to: [email],
           subject: 'Your Trailmark sign-in link',
           html: `<p>Sign in to Trailmark:</p><p><a href="${url}">${url}</a></p>`,
